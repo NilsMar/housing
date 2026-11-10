@@ -46,6 +46,7 @@ def build_html(output_path: str = "index.html") -> None:
             "previous_price": l.get("previous_price"),
             "price_changed_at": l.get("price_changed_at"),
             "commute_m": l.get("commute_m"),
+            "lease_years": l.get("lease_years"),
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
 
@@ -141,13 +142,21 @@ let tenure = '', minScore = 0, priceMin = 0, priceMax = Infinity;
 function bedSz(b){ return({1:9,2:13,3:17,4:21}[b]||13); }
 function daysNorm(d){ return Math.min(1,(d||0)/30); }
 
+function tenureStr(l){
+  if(l.tenure==='leasehold') return l.lease_years ? `Leasehold (${l.lease_years}yr)` : 'Leasehold';
+  if(l.tenure==='share_freehold') return 'Share of freehold';
+  if(l.tenure==='freehold') return 'Freehold';
+  return l.tenure||'Unknown tenure';
+}
+function commuteStr(l){
+  return l.commute_m != null ? `${l.commute_m} min` : '—';
+}
 function hover(l){
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
-  const cm = l.commute_m != null ? `${l.commute_m} min commute · ` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
   return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${l.bedrooms||'?'} bed · ${l.tenure}<br>`+
-         `${cm}${gd} · Listed ${l.days_listed}d ago`;
+         `Score: ${l.score} · ${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
+         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
 }
 
 function valueLine(ls){
@@ -254,12 +263,12 @@ document.getElementById('scatter').on('plotly_click', evt=>{
   document.getElementById('spider-section').style.display='block';
   const pr = l.previous_price && l.previous_price > l.price
     ? ` &nbsp;<span style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</span>` : '';
-  const cm = l.commute_m != null ? ` · ${l.commute_m} min commute` : '';
   document.getElementById('spider-title').innerHTML =
     `${l.address} &nbsp;<a href="${l.url}" target="_blank" style="font-size:.8rem;color:#2980b9">View listing ↗</a>`;
   document.getElementById('spider-meta').innerHTML =
     `Score: ${l.score}/100 &nbsp;·&nbsp; £${l.price.toLocaleString('en-GB')}${pr} &nbsp;·&nbsp; `+
-    `${l.bedrooms||'?'} bed &nbsp;·&nbsp; ${l.tenure}${cm}`;
+    `${l.bedrooms||'?'} bed &nbsp;·&nbsp; ${tenureStr(l)} &nbsp;·&nbsp; `+
+    `🚇 ${commuteStr(l)} commute`;
 
   const vals = DIM_LABELS.map((_,i)=>l.breakdown[Object.keys(l.breakdown)[i]]||0);
   const closed = [...vals, vals[0]];
