@@ -204,7 +204,8 @@ function buildTraces(ls){
 }
 
 const layout = {
-  xaxis:{title:'Asking price (£)',tickformat:'£,.0f',gridcolor:'#f0f0f0'},
+  xaxis:{title:'Asking price (£)',tickformat:'£,.0f',gridcolor:'#f0f0f0',
+         range:[0, 1050000], dtick:200000},
   yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
   plot_bgcolor:'white', paper_bgcolor:'white',
   font:{family:'system-ui,sans-serif',size:13},
