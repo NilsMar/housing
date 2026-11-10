@@ -30,7 +30,6 @@ jobs:
         env:
           GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           HOME_POSTCODE: ${{ secrets.HOME_POSTCODE }}
           DATA_DIR: .
         run: python main.py

@@ -1,10 +1,10 @@
 """
 Sends email alerts when a listing crosses the score threshold.
-Uses Gmail SMTP with an app password (set GMAIL_APP_PASSWORD env var).
+Uses the Gmail API (same OAuth token as gmail_fetcher) — no app password needed.
 """
 
+import base64
 import os
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -62,10 +62,7 @@ def _build_html(listing: dict, score_breakdown: dict) -> str:
 
 
 def send_alert(listing: dict, score_breakdown: dict) -> None:
-    app_password = os.getenv("GMAIL_APP_PASSWORD")
-    if not app_password:
-        print(f"[notifier] GMAIL_APP_PASSWORD not set — skipping alert for {listing['id']}")
-        return
+    from gmail_fetcher import _get_service  # reuse the same OAuth token
 
     threshold = _load_threshold()
     score = listing.get("score", 0)
@@ -79,12 +76,10 @@ def send_alert(listing: dict, score_breakdown: dict) -> None:
     msg["Subject"] = subject
     msg["From"] = GMAIL_USER
     msg["To"] = GMAIL_USER
+    msg.attach(MIMEText(_build_html(listing, score_breakdown), "html"))
 
-    html_body = _build_html(listing, score_breakdown)
-    msg.attach(MIMEText(html_body, "html"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, app_password)
-        server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    service = _get_service()
+    service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
     print(f"[notifier] Alert sent for {listing['id']} (score {score})")
