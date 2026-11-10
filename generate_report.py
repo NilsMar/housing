@@ -16,6 +16,7 @@ import db
 
 DIMENSIONS = ["location", "commute", "price_value", "bedrooms", "outdoor", "tenure", "condition"]
 DIM_LABELS = ["Location", "Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"]
+DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5]  # must match config.yaml weights in same order
 
 
 def build_html(output_path: str = "index.html") -> None:
@@ -53,6 +54,7 @@ def build_html(output_path: str = "index.html") -> None:
     listings_json = json.dumps(rows)
     dim_keys_json = json.dumps(DIMENSIONS)
     dim_labels_json = json.dumps(DIM_LABELS)
+    dim_weights_json = json.dumps(DIM_WEIGHTS)
 
     html = """<!DOCTYPE html>
 <html lang="en">
@@ -137,6 +139,7 @@ def build_html(output_path: str = "index.html") -> None:
 const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
+const DIM_WEIGHTS = __DIM_WEIGHTS__;
 const RECENCY = [[0,'#27ae60'],[0.33,'#f39c12'],[1,'#e74c3c']];
 
 let tenure = '', minScore = 0, priceMin = 0, priceMax = Infinity;
@@ -275,8 +278,14 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 
   const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
   const closed = [...vals, vals[0]];
-  const theta = [...DIM_LABELS, DIM_LABELS[0]];
-  const hoverText = DIM_LABELS.map((lbl,i) => `${lbl}: ${vals[i]}/10`);
+  // Axis labels include weight so users see the multiplier
+  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (×${DIM_WEIGHTS[i]}%)`);
+  const theta = [...axisLabels, axisLabels[0]];
+  // Hover shows: raw score, weight, and resulting contribution to total
+  const hoverText = DIM_LABELS.map((lbl,i) => {
+    const contrib = (vals[i] * DIM_WEIGHTS[i] / 10).toFixed(1);
+    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib} pts</b>`;
+  });
 
   Plotly.react('spider',[{
     type:'scatterpolar', r:closed, theta:theta, fill:'toself',
@@ -298,6 +307,7 @@ document.getElementById('scatter').on('plotly_click', evt=>{
         .replace("__LISTINGS_DATA__", listings_json)
         .replace("__DIM_KEYS__", dim_keys_json)
         .replace("__DIM_LABELS__", dim_labels_json)
+        .replace("__DIM_WEIGHTS__", dim_weights_json)
     )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")
