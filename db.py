@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS listings (
     lease_years   INTEGER,
     score         REAL,
     score_json    TEXT,
+    previous_price   INTEGER,
+    price_changed_at TEXT,
     days_listed   INTEGER DEFAULT 0,
     first_seen    TEXT,
     last_seen     TEXT,
@@ -51,9 +53,22 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after initial schema without breaking existing DBs."""
+    for col, defn in [
+        ("previous_price", "INTEGER"),
+        ("price_changed_at", "TEXT"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE listings ADD COLUMN {col} {defn}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+
 def init_db() -> None:
     with _conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
 
 
 def upsert_listing(data: dict) -> bool:
@@ -67,6 +82,15 @@ def upsert_listing(data: dict) -> bool:
         ).fetchone()
 
         if existing:
+            # Detect price change
+            old_price = conn.execute(
+                "SELECT price FROM listings WHERE id = ?", (data["id"],)
+            ).fetchone()["price"]
+            new_price = data.get("price")
+            if new_price and old_price and new_price != old_price:
+                data["previous_price"] = old_price
+                data["price_changed_at"] = now
+
             fields = [k for k in data if k not in ("id", "first_seen")]
             sql = "UPDATE listings SET " + ", ".join(f"{f} = ?" for f in fields)
             sql += " WHERE id = ?"

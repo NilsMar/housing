@@ -3,6 +3,7 @@ criteria:
   min_bedrooms: 2
   property_types: [flat, house]
   radius_km: 2.0
+  max_commute_minutes: 30
   home_postcode: ""  # set HOME_POSTCODE env var — do not commit your address here
   # Expected median prices per bedroom count in the N1 area (£)
   # Used for price_value scoring — adjust to market conditions

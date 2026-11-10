@@ -69,10 +69,14 @@ def run(dry_run: bool = False) -> None:
             errors.append(f"scrape:{listing['id']}: {e}")
             continue
 
-        # Compute distance
+        # Compute distance (kept for reference) and TfL commute time
         dist = scorer.compute_distance(enriched)
         if dist is not None:
             enriched["dist_km"] = dist
+
+        commute = scorer.compute_commute_time(enriched)
+        if commute is not None:
+            enriched["commute_m"] = commute
 
         # Compute score
         total, breakdown = scorer.score_listing(enriched)
@@ -82,8 +86,8 @@ def run(dry_run: bool = False) -> None:
         if dry_run:
             print(
                 f"  [dry-run] {listing['id']}: score={total} "
-                f"dist={dist}km tenure={enriched.get('tenure')} "
-                f"garden={enriched.get('has_garden')}"
+                f"commute={commute}min dist={dist}km "
+                f"tenure={enriched.get('tenure')} garden={enriched.get('has_garden')}"
             )
             continue
 

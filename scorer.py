@@ -48,9 +48,14 @@ def _home_coords(config: dict) -> tuple[float, float]:
     return _HOME_COORDS
 
 
-def _score_location(lat: float | None, lng: float | None, config: dict) -> float:
+def _score_location(commute_m: int | None, lat: float | None, lng: float | None, config: dict) -> float:
+    # Prefer TfL commute time when available
+    if commute_m is not None:
+        max_commute = config["criteria"].get("max_commute_minutes", 30)
+        return max(0.0, 10.0 * (1 - commute_m / max_commute))
+    # Fallback to straight-line distance
     if not lat or not lng:
-        return 5.0  # neutral when coordinates unknown
+        return 5.0
     home = _home_coords(config)
     dist_km = geodesic(home, (lat, lng)).km
     radius = config["criteria"]["radius_km"]
@@ -124,7 +129,7 @@ def score_listing(listing: dict) -> tuple[float, dict]:
     weights = config["weights"]
 
     dimensions = {
-        "location": _score_location(listing.get("lat"), listing.get("lng"), config),
+        "location": _score_location(listing.get("commute_m"), listing.get("lat"), listing.get("lng"), config),
         "price_value": _score_price(listing.get("price"), listing.get("bedrooms"), config),
         "bedrooms": _score_bedrooms(listing.get("bedrooms")),
         "outdoor": _score_outdoor(listing.get("has_garden", 0)),
@@ -140,6 +145,58 @@ def score_listing(listing: dict) -> tuple[float, dict]:
     ) * 10
 
     return round(total, 2), {k: round(v, 2) for k, v in dimensions.items()}
+
+
+def compute_commute_time(listing: dict) -> int | None:
+    """
+    Returns fastest public transport journey time in minutes from the listing
+    to the home postcode, using the TfL Journey Planner API (free, no key required).
+    """
+    import requests
+
+    config = _load_config()
+    home_postcode = os.getenv("HOME_POSTCODE") or config["criteria"].get("home_postcode", "")
+    if not home_postcode:
+        return None
+
+    lat, lng = listing.get("lat"), listing.get("lng")
+    if not lat or not lng:
+        postcode = listing.get("postcode")
+        if postcode:
+            coords = _geocode_postcode(postcode)
+            if coords and coords[0]:
+                lat, lng = coords
+
+    if not lat or not lng:
+        return None
+
+    from_loc = f"{lat},{lng}"
+    to_loc = home_postcode.replace(" ", "")
+
+    params = {
+        "mode": "tube,bus,overground,national-rail,dlr,elizabeth-line",
+        "journeyPreference": "LeastTime",
+        "time": "0800",
+        "timeIs": "Departing",
+    }
+    app_key = os.getenv("TFL_APP_KEY")
+    if app_key:
+        params["app_key"] = app_key
+
+    try:
+        resp = requests.get(
+            f"https://api.tfl.gov.uk/Journey/JourneyResults/{from_loc}/to/{to_loc}",
+            params=params,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        journeys = resp.json().get("journeys", [])
+        if journeys:
+            return min(j["duration"] for j in journeys)
+    except Exception as e:
+        print(f"[scorer] TfL API failed for {listing.get('id')}: {e}")
+
+    return None
 
 
 def compute_distance(listing: dict) -> float | None:
