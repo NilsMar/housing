@@ -51,6 +51,7 @@ def build_html(output_path: str = "index.html") -> None:
         })
 
     listings_json = json.dumps(rows)
+    dim_keys_json = json.dumps(DIMENSIONS)
     dim_labels_json = json.dumps(DIM_LABELS)
 
     html = """<!DOCTYPE html>
@@ -134,6 +135,7 @@ def build_html(output_path: str = "index.html") -> None:
 
 <script>
 const ALL = __LISTINGS_DATA__;
+const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
 const RECENCY = [[0,'#27ae60'],[0.33,'#f39c12'],[1,'#e74c3c']];
 
@@ -271,13 +273,16 @@ document.getElementById('scatter').on('plotly_click', evt=>{
     `${l.bedrooms||'?'} bed &nbsp;·&nbsp; ${tenureStr(l)} &nbsp;·&nbsp; `+
     `🚇 ${commuteStr(l)} commute`;
 
-  const vals = DIM_LABELS.map((_,i)=>l.breakdown[Object.keys(l.breakdown)[i]]||0);
+  const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
   const closed = [...vals, vals[0]];
   const theta = [...DIM_LABELS, DIM_LABELS[0]];
+  const hoverText = DIM_LABELS.map((lbl,i) => `${lbl}: ${vals[i]}/10`);
 
   Plotly.react('spider',[{
     type:'scatterpolar', r:closed, theta:theta, fill:'toself',
     fillcolor:'rgba(41,128,185,0.18)', line:{color:'#2980b9',width:2},
+    text:[...hoverText, hoverText[0]],
+    hovertemplate:'%{text}<extra></extra>',
   }],{
     polar:{radialaxis:{visible:true,range:[0,10],tickvals:[0,2,4,6,8,10]},bgcolor:'white'},
     paper_bgcolor:'white', font:{family:'system-ui,sans-serif',size:12},
@@ -289,7 +294,11 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 </body>
 </html>"""
 
-    html = html.replace("__LISTINGS_DATA__", listings_json).replace("__DIM_LABELS__", dim_labels_json)
+    html = (html
+        .replace("__LISTINGS_DATA__", listings_json)
+        .replace("__DIM_KEYS__", dim_keys_json)
+        .replace("__DIM_LABELS__", dim_labels_json)
+    )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")
 
