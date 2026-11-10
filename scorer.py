@@ -48,18 +48,22 @@ def _home_coords(config: dict) -> tuple[float, float]:
     return _HOME_COORDS
 
 
-def _score_location(commute_m: int | None, lat: float | None, lng: float | None, config: dict) -> float:
-    # Prefer TfL commute time when available
-    if commute_m is not None:
-        max_commute = config["criteria"].get("max_commute_minutes", 30)
-        return max(0.0, 10.0 * (1 - commute_m / max_commute))
-    # Fallback to straight-line distance
+def _score_location(lat: float | None, lng: float | None, config: dict) -> float:
+    """Proximity to home postcode N1 3PJ — pure distance score."""
     if not lat or not lng:
         return 5.0
     home = _home_coords(config)
     dist_km = geodesic(home, (lat, lng)).km
     radius = config["criteria"]["radius_km"]
     return max(0.0, 10.0 * (1 - dist_km / radius))
+
+
+def _score_commute(commute_m: int | None, config: dict) -> float:
+    """TfL public transport journey time to home postcode."""
+    if commute_m is None:
+        return 5.0  # neutral when not yet fetched
+    max_commute = config["criteria"].get("max_commute_minutes", 30)
+    return max(0.0, 10.0 * (1 - commute_m / max_commute))
 
 
 def _score_price(price: int | None, bedrooms: int | None, config: dict) -> float:
@@ -129,7 +133,8 @@ def score_listing(listing: dict) -> tuple[float, dict]:
     weights = config["weights"]
 
     dimensions = {
-        "location": _score_location(listing.get("commute_m"), listing.get("lat"), listing.get("lng"), config),
+        "location": _score_location(listing.get("lat"), listing.get("lng"), config),
+        "commute": _score_commute(listing.get("commute_m"), config),
         "price_value": _score_price(listing.get("price"), listing.get("bedrooms"), config),
         "bedrooms": _score_bedrooms(listing.get("bedrooms")),
         "outdoor": _score_outdoor(listing.get("has_garden", 0)),

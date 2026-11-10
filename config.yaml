@@ -14,7 +14,8 @@ criteria:
     4: 1200000
 
 weights:
-  location: 25  # scored as TfL commute time (falls back to distance)
+  location: 15   # straight-line proximity to N1 3PJ
+  commute: 10    # TfL journey time (falls back to neutral if not yet fetched)
   price_value: 25
   bedrooms: 20
   outdoor: 15

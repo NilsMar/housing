@@ -14,8 +14,8 @@ from pathlib import Path
 
 import db
 
-DIMENSIONS = ["location", "price_value", "bedrooms", "outdoor", "tenure", "condition"]
-DIM_LABELS = ["Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"]
+DIMENSIONS = ["location", "commute", "price_value", "bedrooms", "outdoor", "tenure", "condition"]
+DIM_LABELS = ["Location", "Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"]
 
 
 def build_html(output_path: str = "index.html") -> None:
@@ -281,11 +281,6 @@ document.getElementById('scatter').on('plotly_click', evt=>{
     polar:{radialaxis:{visible:true,range:[0,10],tickvals:[0,2,4,6,8,10]},bgcolor:'white'},
     paper_bgcolor:'white', font:{family:'system-ui,sans-serif',size:12},
     margin:{t:20,b:20,l:40,r:40}, showlegend:false, height:400,
-    annotations:[{
-      x:0.5, y:0.5, xref:'paper', yref:'paper', showarrow:false,
-      text:`<b style="font-size:1.1em">${l.score}</b><br><span style="font-size:.75em;color:#7f8c8d">/100</span>`,
-      font:{size:16, color:'#2980b9'},
-    }],
   });
   document.getElementById('spider-section').scrollIntoView({behavior:'smooth',block:'nearest'});
 });
