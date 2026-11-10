@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS listings (
     has_parking   INTEGER DEFAULT 0,
     condition     TEXT DEFAULT 'unknown',
     dist_km       REAL,
+    commute_m     INTEGER,
     tenure        TEXT DEFAULT 'unknown',
     lease_years   INTEGER,
     score         REAL,
@@ -56,6 +57,7 @@ def _conn() -> sqlite3.Connection:
 def _migrate(conn: sqlite3.Connection) -> None:
     """Add columns introduced after initial schema without breaking existing DBs."""
     for col, defn in [
+        ("commute_m", "INTEGER"),
         ("previous_price", "INTEGER"),
         ("price_changed_at", "TEXT"),
     ]:
