@@ -6,82 +6,241 @@
   <title>London Property Tracker</title>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f8f9fa; color: #2c3e50; padding: 20px; }
-    h1 { font-size: 1.4rem; margin-bottom: 4px; }
-    p.sub { color: #7f8c8d; font-size: 0.85rem; margin-bottom: 16px; }
-    #scatter-div { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 8px; }
-    #spider-section { margin-top: 20px; display: none; }
-    #spider-header { padding: 12px 16px; background: white; border-radius: 8px 8px 0 0;
-                      border-bottom: 1px solid #eee; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-    #spider-header h2 { font-size: 1rem; }
-    #spider-header a { color: #2980b9; font-size: 0.85rem; }
-    #spider-header .meta { color: #7f8c8d; font-size: 0.82rem; margin-top: 2px; }
-    #spider-div { background: white; border-radius: 0 0 8px 8px;
-                   box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 8px; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#f5f6fa;color:#2c3e50;padding:20px}
+    h1{font-size:1.4rem;margin-bottom:4px}
+    p.sub{color:#7f8c8d;font-size:.85rem;margin-bottom:16px}
+
+    #filters{background:white;border-radius:8px;padding:14px 18px;margin-bottom:14px;
+             box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end}
+    .fg label{display:block;font-size:.75rem;font-weight:600;color:#7f8c8d;text-transform:uppercase;
+              letter-spacing:.04em;margin-bottom:5px}
+    .price-row{display:flex;align-items:center;gap:6px}
+    .price-row input{width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:.85rem}
+    .price-row span{color:#aaa;font-size:.85rem}
+    .score-row{display:flex;align-items:center;gap:8px}
+    .score-row input[type=range]{width:120px;accent-color:#2980b9}
+    .score-row span{font-size:.85rem;font-weight:600;color:#2980b9;min-width:28px}
+    .pills{display:flex;gap:5px;flex-wrap:wrap}
+    .pill{padding:4px 10px;border:1px solid #ddd;border-radius:20px;cursor:pointer;font-size:.8rem;
+          background:white;color:#555;transition:all .15s}
+    .pill.active{background:#2980b9;color:white;border-color:#2980b9}
+    #count{margin-left:auto;font-size:.8rem;color:#7f8c8d;align-self:center}
+
+    #scatter-wrap{background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px}
+    #spider-section{margin-top:14px;display:none}
+    #spider-header{background:white;border-radius:8px 8px 0 0;padding:12px 16px;
+                   border-bottom:1px solid #eee;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+    #spider-header h2{font-size:1rem}
+    #spider-header .meta{color:#7f8c8d;font-size:.82rem;margin-top:3px}
+    #spider-wrap{background:white;border-radius:0 0 8px 8px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px}
   </style>
 </head>
 <body>
   <h1>London Property Tracker</h1>
-  <p class="sub">Click any dot to drill into its scoring breakdown. Dot size = bedrooms. Colour = days listed.</p>
-  <div id="scatter-div">
-    <div id="scatter"></div>
+  <p class="sub">Click any dot to drill into its scoring breakdown. &nbsp;▼ purple triangle = price reduced.</p>
+
+  <div id="filters">
+    <div class="fg">
+      <label>Price</label>
+      <div class="price-row">
+        <input type="number" id="price-min" placeholder="No min" step="25000">
+        <span>–</span>
+        <input type="number" id="price-max" placeholder="No max" step="25000">
+      </div>
+    </div>
+    <div class="fg">
+      <label>Min score &nbsp;<span id="score-label" style="color:#2980b9;font-weight:700">0</span></label>
+      <div class="score-row">
+        <input type="range" id="score-min" min="0" max="100" value="0">
+      </div>
+    </div>
+    <div class="fg">
+      <label>Tenure</label>
+      <div class="pills" id="tenure-pills">
+        <button class="pill active" data-t="">All</button>
+        <button class="pill" data-t="freehold">Freehold</button>
+        <button class="pill" data-t="share_freehold">Share of freehold</button>
+        <button class="pill" data-t="leasehold">Leasehold</button>
+      </div>
+    </div>
+    <div id="count"></div>
   </div>
+
+  <div id="scatter-wrap"><div id="scatter"></div></div>
+
   <div id="spider-section">
     <div id="spider-header">
       <h2 id="spider-title"></h2>
       <div class="meta" id="spider-meta"></div>
     </div>
-    <div id="spider-div">
-      <div id="spider"></div>
-    </div>
+    <div id="spider-wrap"><div id="spider"></div></div>
   </div>
 
-  <script>
-    const scatterSpec = {"data":[{"customdata":[],"hovertemplate":"%{text}\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"cmax":1,"cmin":0,"color":[],"colorbar":{"len":0.5,"ticktext":["Today","10d","20d","30d+"],"tickvals":[0,0.33,0.66,1.0],"title":{"text":"Days listed"}},"colorscale":[[0.0,"#27ae60"],[0.33,"#f39c12"],[1.0,"#e74c3c"]],"line":{"color":"white","width":1},"opacity":0.85,"size":[]},"mode":"markers","name":"Listings","text":[],"x":[],"y":[],"type":"scatter"}],"layout":{"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05}}},"xaxis":{"title":{"text":"Asking price (\u00a3)"},"tickformat":"\u00a3,.0f","gridcolor":"#f0f0f0"},"yaxis":{"title":{"text":"Weighted score (0\u2013100)"},"range":[0,105],"gridcolor":"#f0f0f0"},"font":{"family":"system-ui, sans-serif","size":13},"legend":{"orientation":"h","y":-0.15},"margin":{"t":60,"b":60,"l":60,"r":20},"title":{"text":"London property tracker \u2014 score vs. price"},"plot_bgcolor":"white","paper_bgcolor":"white","annotations":[{"font":{"color":"rgba(100,100,200,0.7)","size":11},"showarrow":false,"text":"\u2b06 Above line = better value","x":0.01,"xanchor":"left","xref":"paper","y":0.99,"yanchor":"top","yref":"paper"}]}};
-    const spiderData = {};
+<script>
+const ALL = [];
+const DIM_KEYS = ["location", "commute", "price_value", "bedrooms", "outdoor", "tenure", "condition"];
+const DIM_LABELS = ["Location", "Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"];
+const DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5];
+const RECENCY = [[0,'#27ae60'],[0.33,'#f39c12'],[1,'#e74c3c']];
 
-    Plotly.newPlot('scatter', scatterSpec.data, scatterSpec.layout, {responsive: true});
+let tenure = '', minScore = 0, priceMin = 0, priceMax = Infinity;
 
-    document.getElementById('scatter').on('plotly_click', function(evt) {
-      const pt = evt.points[0];
-      const id = pt.customdata;
-      const d = spiderData[id];
-      if (!d) return;
+function bedSz(b){ return({1:9,2:13,3:17,4:21}[b]||13); }
+function daysNorm(d){ return Math.min(1,(d||0)/30); }
 
-      document.getElementById('spider-section').style.display = 'block';
-      document.getElementById('spider-title').textContent = d.address;
+function tenureStr(l){
+  if(l.tenure==='leasehold') return l.lease_years ? `Leasehold (${l.lease_years}yr)` : 'Leasehold';
+  if(l.tenure==='share_freehold') return 'Share of freehold';
+  if(l.tenure==='freehold') return 'Freehold';
+  return l.tenure||'Unknown tenure';
+}
+function commuteStr(l){
+  return l.commute_m != null ? `${l.commute_m} min` : '—';
+}
+function hover(l){
+  const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
+  const gd = l.has_garden ? 'Garden ✓' : 'No garden';
+  return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
+         `Score: ${l.score} · ${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
+         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
+}
 
-      const price = d.price ? '£' + d.price.toLocaleString('en-GB') : '';
-      const garden = d.has_garden ? 'Garden ✓' : 'No garden';
-      document.getElementById('spider-meta').textContent =
-        `Score: ${d.score}/100  ·  ${price}  ·  ${d.bedrooms || '?'} bed  ·  ${d.tenure}  ·  ${garden}`;
+function valueLine(ls){
+  if(ls.length < 3) return null;
+  const xs = ls.map(l=>l.price), ys = ls.map(l=>l.score);
+  const n=xs.length, xm=xs.reduce((a,b)=>a+b)/n, ym=ys.reduce((a,b)=>a+b)/n;
+  const num=xs.map((x,i)=>(x-xm)*(ys[i]-ym)).reduce((a,b)=>a+b);
+  const den=xs.map(x=>(x-xm)**2).reduce((a,b)=>a+b);
+  if(!den) return null;
+  const m=num/den, bv=ym-m*xm;
+  const x0=Math.min(...xs), x1=Math.max(...xs);
+  return{type:'scatter',x:[x0,x1],y:[m*x0+bv,m*x1+bv],mode:'lines',
+         line:{color:'rgba(100,100,200,0.35)',dash:'dash',width:1.5},
+         name:'Market average',hoverinfo:'skip'};
+}
 
-      const link = document.getElementById('spider-title');
-      link.innerHTML = `${d.address} <a href="${d.url}" target="_blank" style="font-size:.8rem;color:#2980b9">View listing ↗</a>`;
+function buildTraces(ls){
+  const main = {
+    type:'scatter', x:ls.map(l=>l.price), y:ls.map(l=>l.score), mode:'markers',
+    marker:{
+      size:ls.map(l=>bedSz(l.bedrooms)),
+      color:ls.map(l=>daysNorm(l.days_listed)),
+      colorscale:RECENCY, cmin:0, cmax:1,
+      colorbar:{title:{text:'Days listed',side:'right'},
+                tickvals:[0,0.33,0.66,1],ticktext:['Today','10d','20d','30d+'],len:0.5},
+      line:{width:1,color:'white'}, opacity:0.85,
+    },
+    text:ls.map(hover), hovertemplate:'%{text}<extra></extra>',
+    customdata:ls.map(l=>l.id), name:'Listings',
+  };
 
-      Plotly.react('spider', [{
-        type: 'scatterpolar',
-        r: d.traces.r,
-        theta: d.traces.theta,
-        fill: 'toself',
-        fillcolor: 'rgba(41,128,185,0.18)',
-        line: {color: '#2980b9', width: 2},
-        name: d.address,
-      }], {
-        polar: {
-          radialaxis: {visible: true, range: [0, 10], tickvals: [0,2,4,6,8,10]},
-          bgcolor: 'white',
-        },
-        paper_bgcolor: 'white',
-        font: {family: 'system-ui, sans-serif', size: 12},
-        margin: {t: 20, b: 20, l: 40, r: 40},
-        showlegend: false,
-        height: 400,
-      });
+  const red = ls.filter(l=>l.previous_price && l.previous_price > l.price);
+  const overlay = {
+    type:'scatter', x:red.map(l=>l.price), y:red.map(l=>l.score), mode:'markers',
+    marker:{symbol:'triangle-down',size:14,color:'#8e44ad',line:{width:2,color:'white'}},
+    text:red.map(l=>`↓ Price reduced: £${l.previous_price.toLocaleString('en-GB')} → £${l.price.toLocaleString('en-GB')}`),
+    hovertemplate:'%{text}<extra></extra>',
+    customdata:red.map(l=>l.id), name:'↓ Price reduced',
+  };
 
-      document.getElementById('spider-section').scrollIntoView({behavior: 'smooth', block: 'nearest'});
-    });
-  </script>
+  const traces = [main, overlay];
+  const vl = valueLine(ls);
+  if(vl) traces.push(vl);
+  return traces;
+}
+
+const layout = {
+  xaxis:{title:'Asking price (£)',tickformat:'£,.0f',gridcolor:'#f0f0f0',
+         range:[0, 1050000], dtick:200000},
+  yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
+  plot_bgcolor:'white', paper_bgcolor:'white',
+  font:{family:'system-ui,sans-serif',size:13},
+  legend:{orientation:'h',y:-0.18},
+  margin:{t:40,b:60,l:60,r:20},
+  annotations:[{x:0.01,y:0.99,xref:'paper',yref:'paper',
+    text:'⬆ Above line = better value',showarrow:false,
+    font:{size:11,color:'rgba(100,100,200,0.65)'},xanchor:'left',yanchor:'top'}],
+};
+
+function filtered(){
+  return ALL.filter(l=>
+    l.price >= priceMin && l.price <= priceMax &&
+    l.score >= minScore &&
+    (!tenure || l.tenure === tenure)
+  );
+}
+
+function render(){
+  const ls = filtered();
+  document.getElementById('count').textContent = ls.length + ' listing' + (ls.length!==1?'s':'');
+  Plotly.react('scatter', buildTraces(ls), layout);
+}
+
+Plotly.newPlot('scatter', buildTraces(ALL), layout, {responsive:true});
+document.getElementById('count').textContent = ALL.length + ' listing' + (ALL.length!==1?'s':'');
+
+// Filter wiring
+document.getElementById('price-min').addEventListener('input', e=>{
+  priceMin = parseInt(e.target.value)||0; render();
+});
+document.getElementById('price-max').addEventListener('input', e=>{
+  priceMax = parseInt(e.target.value)||Infinity; render();
+});
+document.getElementById('score-min').addEventListener('input', e=>{
+  minScore = parseInt(e.target.value);
+  document.getElementById('score-label').textContent = minScore;
+  render();
+});
+document.querySelectorAll('#tenure-pills .pill').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#tenure-pills .pill').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    tenure = btn.dataset.t;
+    render();
+  });
+});
+
+// Spider drill-down
+document.getElementById('scatter').on('plotly_click', evt=>{
+  const pt = evt.points[0];
+  const id = pt.customdata;
+  const l = ALL.find(x=>x.id===id);
+  if(!l) return;
+
+  document.getElementById('spider-section').style.display='block';
+  const pr = l.previous_price && l.previous_price > l.price
+    ? ` &nbsp;<span style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</span>` : '';
+  document.getElementById('spider-title').innerHTML =
+    `${l.address} &nbsp;<a href="${l.url}" target="_blank" style="font-size:.8rem;color:#2980b9">View listing ↗</a>`;
+  document.getElementById('spider-meta').innerHTML =
+    `Score: ${l.score}/100 &nbsp;·&nbsp; £${l.price.toLocaleString('en-GB')}${pr} &nbsp;·&nbsp; `+
+    `${l.bedrooms||'?'} bed &nbsp;·&nbsp; ${tenureStr(l)} &nbsp;·&nbsp; `+
+    `🚇 ${commuteStr(l)} commute`;
+
+  const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
+  const closed = [...vals, vals[0]];
+  // Axis labels include weight so users see the multiplier
+  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (×${DIM_WEIGHTS[i]}%)`);
+  const theta = [...axisLabels, axisLabels[0]];
+  // Hover shows: raw score, weight, and resulting contribution to total
+  const hoverText = DIM_LABELS.map((lbl,i) => {
+    const contrib = (vals[i] * DIM_WEIGHTS[i] / 10).toFixed(1);
+    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib} pts</b>`;
+  });
+
+  Plotly.react('spider',[{
+    type:'scatterpolar', r:closed, theta:theta, fill:'toself',
+    fillcolor:'rgba(41,128,185,0.18)', line:{color:'#2980b9',width:2},
+    text:[...hoverText, hoverText[0]],
+    hovertemplate:'%{text}<extra></extra>',
+  }],{
+    polar:{radialaxis:{visible:true,range:[0,10],tickvals:[0,2,4,6,8,10]},bgcolor:'white'},
+    paper_bgcolor:'white', font:{family:'system-ui,sans-serif',size:12},
+    margin:{t:20,b:20,l:40,r:40}, showlegend:false, height:400,
+  });
+  document.getElementById('spider-section').scrollIntoView({behavior:'smooth',block:'nearest'});
+});
+</script>
 </body>
 </html>
