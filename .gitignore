@@ -1,0 +1,15 @@
+credentials/
+*.json
+token.pickle
+*.db
+*.db-shm
+*.db-wal
+.env
+__pycache__/
+*.pyc
+.DS_Store
+venv/
+.venv/
+housing.db
+index.html
+_report/

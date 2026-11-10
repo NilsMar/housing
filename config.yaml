@@ -1,0 +1,26 @@
+criteria:
+  max_price: 800000
+  min_bedrooms: 2
+  property_types: [flat, house]
+  radius_km: 2.0
+  home_postcode: ""  # set HOME_POSTCODE env var — do not commit your address here
+  # Expected median prices per bedroom count in the N1 area (£)
+  # Used for price_value scoring — adjust to market conditions
+  median_prices:
+    1: 450000
+    2: 650000
+    3: 900000
+    4: 1200000
+
+weights:
+  location: 25
+  price_value: 25
+  bedrooms: 20
+  outdoor: 15
+  tenure: 10
+  condition: 5
+
+alert_threshold: 75  # score out of 100 to trigger email
+
+schedule:
+  run_time_utc: "08:00"
