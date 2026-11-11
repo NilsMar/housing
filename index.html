@@ -21,10 +21,9 @@
     .score-row{display:flex;align-items:center;gap:8px}
     .score-row input[type=range]{width:120px;accent-color:#2980b9}
     .score-row span{font-size:.85rem;font-weight:600;color:#2980b9;min-width:28px}
-    .pills{display:flex;gap:5px;flex-wrap:wrap}
-    .pill{padding:4px 10px;border:1px solid #ddd;border-radius:20px;cursor:pointer;font-size:.8rem;
-          background:white;color:#555;transition:all .15s}
-    .pill.active{background:#2980b9;color:white;border-color:#2980b9}
+    .days-row{display:flex;align-items:center;gap:8px}
+    .days-row input[type=range]{width:120px;accent-color:#e67e22}
+    .days-row span{font-size:.85rem;font-weight:600;color:#e67e22;min-width:36px}
     #count{margin-left:auto;font-size:.8rem;color:#7f8c8d;align-self:center}
 
     #scatter-wrap{background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px}
@@ -56,12 +55,9 @@
       </div>
     </div>
     <div class="fg">
-      <label>Tenure</label>
-      <div class="pills" id="tenure-pills">
-        <button class="pill active" data-t="">All</button>
-        <button class="pill" data-t="freehold">Freehold</button>
-        <button class="pill" data-t="share_freehold">Share of freehold</button>
-        <button class="pill" data-t="leasehold">Leasehold</button>
+      <label>Listed within &nbsp;<span id="days-label" style="color:#e67e22;font-weight:700">any time</span></label>
+      <div class="days-row">
+        <input type="range" id="days-max" min="1" max="90" value="90" step="1">
       </div>
     </div>
     <div id="count"></div>
@@ -79,15 +75,25 @@
 
 <script>
 const ALL = [];
-const DIM_KEYS = ["location", "commute", "price_value", "bedrooms", "outdoor", "tenure", "condition"];
-const DIM_LABELS = ["Location", "Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"];
+const DIM_KEYS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition"];
+const DIM_LABELS = ["Location", "Commute", "Price value", "Size (m\u00b2)", "Outdoor", "Tenure", "Condition"];
 const DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5];
-const RECENCY = [[0,'#27ae60'],[0.33,'#f39c12'],[1,'#e74c3c']];
+const TENURE_COLOR = {
+  freehold:       '#27ae60',
+  share_freehold: '#2980b9',
+  leasehold:      '#e67e22',
+  unknown:        '#95a5a6',
+};
+const TENURE_NAME = {
+  freehold:       'Freehold',
+  share_freehold: 'Share of freehold',
+  leasehold:      'Leasehold',
+  unknown:        'Unknown tenure',
+};
 
-let tenure = '', minScore = 0, priceMin = 0, priceMax = Infinity;
+let maxDays = Infinity, minScore = 0, priceMin = 0, priceMax = Infinity;
 
 function bedSz(b){ return({1:9,2:13,3:17,4:21}[b]||13); }
-function daysNorm(d){ return Math.min(1,(d||0)/30); }
 
 function tenureStr(l){
   if(l.tenure==='leasehold') return l.lease_years ? `Leasehold (${l.lease_years}yr)` : 'Leasehold';
@@ -101,8 +107,9 @@ function commuteStr(l){
 function hover(l){
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
+  const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
   return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
+         `Score: ${l.score} · ${sz}${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
          `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
 }
 
@@ -121,19 +128,24 @@ function valueLine(ls){
 }
 
 function buildTraces(ls){
-  const main = {
-    type:'scatter', x:ls.map(l=>l.price), y:ls.map(l=>l.score), mode:'markers',
+  // One trace per tenure type for discrete legend
+  const groups = {};
+  ls.forEach(l => {
+    const t = (l.tenure && TENURE_COLOR[l.tenure]) ? l.tenure : 'unknown';
+    if(!groups[t]) groups[t] = [];
+    groups[t].push(l);
+  });
+  const traces = Object.entries(groups).map(([t, items]) => ({
+    type:'scatter', x:items.map(l=>l.price), y:items.map(l=>l.score), mode:'markers',
     marker:{
-      size:ls.map(l=>bedSz(l.bedrooms)),
-      color:ls.map(l=>daysNorm(l.days_listed)),
-      colorscale:RECENCY, cmin:0, cmax:1,
-      colorbar:{title:{text:'Days listed',side:'right'},
-                tickvals:[0,0.33,0.66,1],ticktext:['Today','10d','20d','30d+'],len:0.5},
+      size:items.map(l=>bedSz(l.bedrooms)),
+      color:TENURE_COLOR[t],
       line:{width:1,color:'white'}, opacity:0.85,
     },
-    text:ls.map(hover), hovertemplate:'%{text}<extra></extra>',
-    customdata:ls.map(l=>l.id), name:'Listings',
-  };
+    text:items.map(hover), hovertemplate:'%{text}<extra></extra>',
+    customdata:items.map(l=>l.id),
+    name:TENURE_NAME[t]||t,
+  }));
 
   const red = ls.filter(l=>l.previous_price && l.previous_price > l.price);
   const overlay = {
@@ -144,7 +156,7 @@ function buildTraces(ls){
     customdata:red.map(l=>l.id), name:'↓ Price reduced',
   };
 
-  const traces = [main, overlay];
+  traces.push(overlay);
   const vl = valueLine(ls);
   if(vl) traces.push(vl);
   return traces;
@@ -156,7 +168,7 @@ const layout = {
   yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
   plot_bgcolor:'white', paper_bgcolor:'white',
   font:{family:'system-ui,sans-serif',size:13},
-  legend:{orientation:'h',y:-0.18},
+  showlegend:true, legend:{orientation:'h',y:-0.18},
   margin:{t:40,b:60,l:60,r:20},
   annotations:[{x:0.01,y:0.99,xref:'paper',yref:'paper',
     text:'⬆ Above line = better value',showarrow:false,
@@ -167,7 +179,7 @@ function filtered(){
   return ALL.filter(l=>
     l.price >= priceMin && l.price <= priceMax &&
     l.score >= minScore &&
-    (!tenure || l.tenure === tenure)
+    (l.days_listed || 0) <= maxDays
   );
 }
 
@@ -192,13 +204,11 @@ document.getElementById('score-min').addEventListener('input', e=>{
   document.getElementById('score-label').textContent = minScore;
   render();
 });
-document.querySelectorAll('#tenure-pills .pill').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#tenure-pills .pill').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    tenure = btn.dataset.t;
-    render();
-  });
+document.getElementById('days-max').addEventListener('input', e=>{
+  const v = parseInt(e.target.value);
+  maxDays = v >= 90 ? Infinity : v;
+  document.getElementById('days-label').textContent = v >= 90 ? 'any time' : `${v}d`;
+  render();
 });
 
 // Spider drill-down
