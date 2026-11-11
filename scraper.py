@@ -57,6 +57,19 @@ def _extract_next_data(html: str) -> dict | None:
     return None
 
 
+def _extract_json_ld_listing(html: str) -> dict | None:
+    """Extract the schema.org RealEstateListing from JSON-LD markup."""
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(tag.string or "")
+            if data.get("@type") == "RealEstateListing":
+                return data
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    return None
+
+
 def _normalise_tenure(raw: str | None, lease_years: int | None = None) -> tuple[str, int | None]:
     if not raw:
         return "unknown", None
@@ -201,7 +214,8 @@ def scrape_rightmove(url: str) -> dict:
 
 def scrape_zoopla(url: str) -> dict:
     resp = _get(url)
-    data = _extract_next_data(resp.text)
+    html = resp.text
+    data = _extract_next_data(html)
     result: dict = {}
 
     if data:
@@ -244,9 +258,27 @@ def scrape_zoopla(url: str) -> dict:
         result["address"] = result["title"]
         result["description"] = description[:500] if description else None
     else:
-        soup = BeautifulSoup(resp.text, "lxml")
+        soup = BeautifulSoup(html, "lxml")
         result["title"] = soup.title.string if soup.title else None
         result["address"] = result.get("title")
+
+    # JSON-LD schema is always present and reliable for price, beds, baths, floor area
+    ld = _extract_json_ld_listing(html)
+    if ld:
+        ld_props = {p["name"]: p["value"] for p in ld.get("additionalProperty", []) if isinstance(p, dict)}
+        if not result.get("price"):
+            result["price"] = int((ld.get("offers") or {}).get("price") or 0) or None
+        if not result.get("bedrooms"):
+            result["bedrooms"] = int(ld_props.get("Bedrooms") or 0) or None
+        if not result.get("bathrooms"):
+            result["bathrooms"] = int(ld_props.get("Bathrooms") or 0) or None
+        # Floor size: "941 sq. ft" or "1,501 sq. ft" — strip non-digits
+        if not result.get("sq_ft"):
+            floor_str = ld_props.get("Floor size", "")
+            if floor_str:
+                nums = re.sub(r"[^\d]", "", floor_str)
+                if nums:
+                    result["sq_ft"] = int(nums)
 
     result["enriched"] = 1
     return result
