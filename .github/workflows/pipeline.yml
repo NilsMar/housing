@@ -19,7 +19,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
 
       - name: Run pipeline
         env:
@@ -27,6 +29,7 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           HOME_POSTCODE: ${{ secrets.HOME_POSTCODE }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python main.py
 
       - name: Generate report
