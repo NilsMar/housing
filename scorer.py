@@ -20,16 +20,40 @@ def _geocode_postcode(postcode: str) -> tuple[float, float] | None:
     """Resolve a UK postcode to (lat, lng) via postcodes.io — no API key needed."""
     import requests
 
-    clean = postcode.replace(" ", "")
+    clean = postcode.replace(" ", "").upper()
+    try:
+        resp = requests.get(f"https://api.postcodes.io/postcodes/{clean}", timeout=5)
+        if resp.ok:
+            result = resp.json().get("result", {})
+            return result.get("latitude"), result.get("longitude")
+        # Outcode fallback (e.g. "N1" with no sector/unit)
+        resp = requests.get(f"https://api.postcodes.io/outcodes/{clean}", timeout=5)
+        if resp.ok:
+            result = resp.json().get("result", {})
+            return result.get("latitude"), result.get("longitude")
+    except Exception:
+        pass
+    return None
+
+
+def _geocode_address(address: str) -> tuple[float, float] | None:
+    """Geocode a UK street address via Nominatim (OSM). No API key needed."""
+    import requests
+
     try:
         resp = requests.get(
-            f"https://api.postcodes.io/postcodes/{clean}", timeout=5
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": address + ", UK", "format": "json", "limit": 1, "countrycodes": "gb"},
+            headers={"User-Agent": "housing-tracker/1.0"},
+            timeout=5,
         )
         resp.raise_for_status()
-        result = resp.json().get("result", {})
-        return result.get("latitude"), result.get("longitude")
+        results = resp.json()
+        if results:
+            return float(results[0]["lat"]), float(results[0]["lon"])
     except Exception:
-        return None
+        pass
+    return None
 
 
 _HOME_COORDS: tuple[float, float] | None = None
@@ -58,12 +82,12 @@ def _score_location(lat: float | None, lng: float | None, config: dict) -> float
     return max(0.0, 10.0 * (1 - dist_km / radius))
 
 
-def _score_commute(commute_m: int | None, config: dict) -> float:
-    """TfL public transport journey time to home postcode."""
-    if commute_m is None:
+def _score_commute(walk_to_station_m: int | None, config: dict) -> float:
+    """Walk time in minutes to nearest tube/overground station."""
+    if walk_to_station_m is None:
         return 5.0  # neutral when not yet fetched
-    max_commute = config["criteria"].get("max_commute_minutes", 30)
-    return max(0.0, 10.0 * (1 - commute_m / max_commute))
+    max_walk = config["criteria"].get("max_walk_to_station_minutes", 20)
+    return max(0.0, 10.0 * (1 - walk_to_station_m / max_walk))
 
 
 def _score_price(price: int | None, bedrooms: int | None, config: dict) -> float:
@@ -124,6 +148,14 @@ def _score_condition(condition: str | None) -> float:
     return mapping.get(condition or "unknown", 5.0)
 
 
+def _score_epc(epc_rating: str | None) -> float:
+    if not epc_rating:
+        return 5.0  # neutral when unknown
+    return {"A": 10.0, "B": 8.5, "C": 7.0, "D": 5.0, "E": 3.0, "F": 1.5, "G": 0.0}.get(
+        epc_rating.upper(), 5.0
+    )
+
+
 def score_listing(listing: dict) -> tuple[float, dict]:
     """
     Returns (total_score_0_to_100, dimension_breakdown_dict).
@@ -134,12 +166,13 @@ def score_listing(listing: dict) -> tuple[float, dict]:
 
     dimensions = {
         "location": _score_location(listing.get("lat"), listing.get("lng"), config),
-        "commute": _score_commute(listing.get("commute_m"), config),
+        "commute": _score_commute(listing.get("walk_to_station_m"), config),
         "price_value": _score_price(listing.get("price"), listing.get("bedrooms"), config),
         "sq_m": _score_sq_m(listing.get("sq_ft")),
         "outdoor": _score_outdoor(listing.get("has_garden", 0)),
         "tenure": _score_tenure(listing.get("tenure"), listing.get("lease_years")),
         "condition": _score_condition(listing.get("condition")),
+        "epc": _score_epc(listing.get("epc_rating")),
     }
 
     total_weight = sum(weights.values())
@@ -150,6 +183,24 @@ def score_listing(listing: dict) -> tuple[float, dict]:
     ) * 10
 
     return round(total, 2), {k: round(v, 2) for k, v in dimensions.items()}
+
+
+def _resolve_coords(listing: dict) -> tuple[float | None, float | None]:
+    """Return (lat, lng) from the listing, geocoding from address or postcode if missing."""
+    lat, lng = listing.get("lat"), listing.get("lng")
+    if lat and lng:
+        return lat, lng
+    address = listing.get("address") or listing.get("title")
+    if address:
+        coords = _geocode_address(address)
+        if coords and coords[0]:
+            return coords
+    postcode = listing.get("postcode")
+    if postcode:
+        coords = _geocode_postcode(postcode)
+        if coords and coords[0]:
+            return coords
+    return None, None
 
 
 def compute_commute_time(listing: dict) -> int | None:
@@ -164,13 +215,7 @@ def compute_commute_time(listing: dict) -> int | None:
     if not home_postcode:
         return None
 
-    lat, lng = listing.get("lat"), listing.get("lng")
-    if not lat or not lng:
-        postcode = listing.get("postcode")
-        if postcode:
-            coords = _geocode_postcode(postcode)
-            if coords and coords[0]:
-                lat, lng = coords
+    lat, lng = _resolve_coords(listing)
 
     if not lat or not lng:
         return None
@@ -204,20 +249,57 @@ def compute_commute_time(listing: dict) -> int | None:
     return None
 
 
-def compute_distance(listing: dict) -> float | None:
-    """Return distance in km from home postcode. Geocodes postcode if lat/lng missing."""
-    config = _load_config()
-    lat, lng = listing.get("lat"), listing.get("lng")
+def compute_nearest_station(listing: dict) -> tuple[str | None, int | None]:
+    """
+    Returns (station_name, walk_minutes) for the nearest tube/overground station
+    using the TfL StopPoint API (no key required for basic queries).
+    """
+    import requests
 
+    lat, lng = _resolve_coords(listing)
     if not lat or not lng:
-        postcode = listing.get("postcode")
-        if postcode:
-            coords = _geocode_postcode(postcode)
-            if coords and coords[0]:
-                lat, lng = coords
+        return None, None
 
+    params = {
+        "lat": lat,
+        "lon": lng,
+        "stopTypes": "NaptanMetroStation,NaptanRailStation",
+        "radius": 1200,
+        "useStopPointHierarchy": "false",
+        "modes": "tube,overground,dlr,elizabeth-line",
+    }
+    app_key = os.getenv("TFL_APP_KEY")
+    if app_key:
+        params["app_key"] = app_key
+
+    try:
+        resp = requests.get("https://api.tfl.gov.uk/StopPoint", params=params, timeout=10)
+        resp.raise_for_status()
+        stops = resp.json().get("stopPoints", [])
+        if not stops:
+            return None, None
+
+        nearest = min(stops, key=lambda s: s.get("distance", float("inf")))
+        name = nearest.get("commonName", "")
+        for suffix in (" Underground Station", " Overground Station", " Rail Station",
+                       " DLR Station", " Elizabeth Line Station", " Station"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+
+        dist_m = nearest.get("distance", 0)
+        walk_min = max(1, round(dist_m / 80))  # 80 m/min ≈ 4.8 km/h walking speed
+        return name, walk_min
+    except Exception as e:
+        print(f"[scorer] TfL StopPoint failed for {listing.get('id')}: {e}")
+        return None, None
+
+
+def compute_distance(listing: dict) -> float | None:
+    """Return distance in km from home postcode. Geocodes from address/postcode if lat/lng missing."""
+    config = _load_config()
+    lat, lng = _resolve_coords(listing)
     if not lat or not lng:
         return None
-
     home = _home_coords(config)
     return round(geodesic(home, (lat, lng)).km, 3)
