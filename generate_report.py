@@ -159,12 +159,27 @@ def build_html(output_path: str = "index.html") -> None:
     #spider-header h2{font-size:1rem}
     #spider-header .meta{color:#7f8c8d;font-size:.82rem;margin-top:3px}
     #spider-wrap{background:white;border-radius:0 0 8px 8px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px}
+    .tabs{display:flex;gap:4px;margin-bottom:14px}
+    .tab-btn{padding:7px 18px;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;
+             font-weight:600;background:white;color:#7f8c8d;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .tab-btn.active{background:#2980b9;color:white}
+    #tab-charts{} #tab-table{display:none}
+    #data-table tr:nth-child(even) td{background:#fafafa}
+    #data-table td,#data-table th{padding:9px 12px;border-bottom:1px solid #f0f0f0}
+    #data-table a{color:#2980b9;text-decoration:none}
+    #data-table a:hover{text-decoration:underline}
   </style>
 </head>
 <body>
   <h1>London Property Tracker</h1>
   <p class="sub">Click any dot to drill into its scoring breakdown. &nbsp;▼ purple triangle = price reduced.</p>
 
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('charts')">Charts</button>
+    <button class="tab-btn" onclick="switchTab('table')">Table</button>
+  </div>
+
+  <div id="tab-charts">
   <div id="filters">
     <div class="fg">
       <label>Price &nbsp;<span id="price-label" style="color:#27ae60;font-weight:700">any</span></label>
@@ -199,7 +214,10 @@ def build_html(output_path: str = "index.html") -> None:
     <div id="spider-wrap"><div id="spider"></div></div>
   </div>
 
-  <div style="margin-top:14px;background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">
+  </div><!-- /tab-charts -->
+
+  <div id="tab-table">
+  <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">
     <table id="data-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
       <thead style="background:#f8f9fa">
         <tr>
@@ -218,8 +236,16 @@ def build_html(output_path: str = "index.html") -> None:
       <tbody></tbody>
     </table>
   </div>
+  </div><!-- /tab-table -->
 
 <script>
+function switchTab(name){
+  document.getElementById('tab-charts').style.display = name==='charts' ? '' : 'none';
+  document.getElementById('tab-table').style.display  = name==='table'  ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>
+    b.classList.toggle('active', (i===0&&name==='charts')||(i===1&&name==='table')));
+}
+</script>
 const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
