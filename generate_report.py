@@ -240,8 +240,8 @@ def build_html(output_path: str = "index.html") -> None:
 
 <script>
 function switchTab(name){
-  document.getElementById('tab-charts').style.display = name==='charts' ? '' : 'none';
-  document.getElementById('tab-table').style.display  = name==='table'  ? '' : 'none';
+  document.getElementById('tab-charts').style.display = name==='charts' ? 'block' : 'none';
+  document.getElementById('tab-table').style.display  = name==='table'  ? 'block' : 'none';
   document.querySelectorAll('.tab-btn').forEach((b,i)=>
     b.classList.toggle('active', (i===0&&name==='charts')||(i===1&&name==='table')));
 }
@@ -500,16 +500,6 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 (function(){
   const tbl = document.getElementById('data-table');
   let sortCol = 'score', sortDir = -1;
-
-  function fmt(l){
-    const sq = l.sq_m ? l.sq_m+'m²' : '—';
-    const beds = l.bedrooms || '—';
-    const tenure = tenureStr(l);
-    const garden = l.has_garden ? 'Yes' : 'No';
-    const days = l.days_listed || 0;
-    const epc = l.epc_rating || '—';
-    return [l, sq, beds, tenure, garden, days, epc];
-  }
 
   function render(){
     const sorted = [...ALL].sort((a,b)=>{
