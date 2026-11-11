@@ -67,7 +67,7 @@ def run(dry_run: bool = False) -> None:
         except Exception as e:
             print(f"  [scraper] Failed {listing['id']}: {e} — scoring from email data only")
             errors.append(f"scrape:{listing['id']}: {e}")
-            enriched = {**listing, "enriched": 0}  # score with what the email gave us
+            enriched = {**listing, "enriched": 1}  # mark done so we don't retry every run
 
         # Compute distance (kept for reference) and TfL commute time
         dist = scorer.compute_distance(enriched)
