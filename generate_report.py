@@ -54,6 +54,9 @@ def build_html(output_path: str = "index.html") -> None:
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
 
+    max_price = max((r["price"] for r in rows), default=2000000)
+    price_slider_max = ((max_price + 24999) // 25000) * 25000
+
     listings_json = json.dumps(rows)
     dim_keys_json = json.dumps(DIMENSIONS)
     dim_labels_json = json.dumps(DIM_LABELS)
@@ -110,8 +113,8 @@ def build_html(output_path: str = "index.html") -> None:
       <label>Price &nbsp;<span id="price-label" style="color:#27ae60;font-weight:700">any</span></label>
       <div class="price-slider-wrap">
         <div class="slider-track"><div id="price-range-fill"></div></div>
-        <input type="range" id="price-min-s" class="price-thumb" min="0" max="2000000" value="0" step="25000" style="z-index:1">
-        <input type="range" id="price-max-s" class="price-thumb" min="0" max="2000000" value="2000000" step="25000" style="z-index:2">
+        <input type="range" id="price-min-s" class="price-thumb" min="0" max="__PRICE_SLIDER_MAX__" value="0" step="25000" style="z-index:1">
+        <input type="range" id="price-max-s" class="price-thumb" min="0" max="__PRICE_SLIDER_MAX__" value="__PRICE_SLIDER_MAX__" step="25000" style="z-index:2">
       </div>
     </div>
     <div class="fg">
@@ -260,7 +263,7 @@ Plotly.newPlot('scatter', buildTraces(ALL), layout, {responsive:true});
 document.getElementById('count').textContent = ALL.length + ' listing' + (ALL.length!==1?'s':'');
 
 // Filter wiring
-const PRICE_SLIDER_MAX = 2000000;
+const PRICE_SLIDER_MAX = __PRICE_SLIDER_MAX__;
 function updatePriceSlider(){
   const maxVal = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax;
   const pct1 = priceMin / PRICE_SLIDER_MAX * 100;
@@ -349,6 +352,7 @@ document.getElementById('scatter').on('plotly_click', evt=>{
         .replace("__DIM_KEYS__", dim_keys_json)
         .replace("__DIM_LABELS__", dim_labels_json)
         .replace("__DIM_WEIGHTS__", dim_weights_json)
+        .replace("__PRICE_SLIDER_MAX__", str(price_slider_max))
     )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")

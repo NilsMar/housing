@@ -254,43 +254,62 @@ def scrape_zoopla(url: str) -> dict:
 
 def scrape_onthemarket(url: str) -> dict:
     resp = _get(url)
-    soup = BeautifulSoup(resp.text, "lxml")
     result: dict = {}
 
-    # Price
-    price_el = soup.select_one("[data-testid='price'], .price, h2.price")
-    if price_el:
-        price_str = price_el.get_text(strip=True)
-        m = re.search(r"[\d,]+", price_str.replace(",", ""))
-        result["price"] = int(m.group(0)) if m else None
+    data = _extract_next_data(resp.text)
+    prop = (data or {}).get("props", {}).get("pageProps", {}).get("initialReduxState", {}).get("property", {})
+    meta = (data or {}).get("props", {}).get("pageProps", {}).get("initialReduxState", {}).get("metadata", {})
 
-    # Beds/baths
-    for el in soup.select("[data-testid='beds'], [class*='bedrooms']"):
-        m = re.search(r"\d+", el.get_text())
-        if m:
-            result["bedrooms"] = int(m.group(0))
-            break
+    if prop or meta:
+        dl = meta.get("dataLayer", {})
+        price_str = dl.get("price", "")
+        result["price"] = int(re.sub(r"[^\d]", "", price_str)) if price_str else None
 
-    # Features
-    features = [el.get_text(strip=True) for el in soup.select("li.feature, [data-testid='feature-list'] li")]
-    description = ""
-    desc_el = soup.select_one("[data-testid='description'], .description")
-    if desc_el:
-        description = desc_el.get_text(" ", strip=True)
+        result["bedrooms"] = prop.get("bedrooms")
+        result["bathrooms"] = prop.get("bathrooms")
 
-    # Tenure from features or description
-    tenure_text = " ".join(features) + " " + description
-    result["tenure"], result["lease_years"] = _normalise_tenure(tenure_text)
+        loc = prop.get("location", {})
+        result["lat"] = loc.get("lat")
+        result["lng"] = loc.get("lon")
+        result["postcode"] = dl.get("postcode")
 
-    result["has_garden"] = int(_has_garden(features, description))
-    result["has_parking"] = int(_has_parking(features, description))
-    result["condition"] = _infer_condition("", features, description)
+        # Address from page title: "Cleveland Road, London, N1 2 bed apartment for sale - £795,000"
+        page_title = meta.get("pageTitles", {}).get("page-title", "")
+        m_addr = re.match(r"^(.+?)\s+\d+\s+bed\b", page_title)
+        addr = m_addr.group(1).rstrip(", ") if m_addr else dl.get("addressline_2", "")
+        result["title"] = addr
+        result["address"] = addr
 
-    # Address / title
-    h1 = soup.find("h1")
-    result["title"] = h1.get_text(strip=True) if h1 else None
-    result["address"] = result["title"]
-    result["description"] = description[:500] if description else None
+        # Tenure from keyInfo structured data
+        for item in prop.get("keyInfo") or []:
+            if item.get("title") == "Tenure" and not item.get("isUnknown"):
+                val = item.get("value", "")
+                # e.g. "Leasehold  |  88 yrs left" or "Freehold"
+                lease_m = re.search(r"(\d+)\s*yr", val, re.IGNORECASE)
+                lease_years = int(lease_m.group(1)) if lease_m else None
+                result["tenure"], result["lease_years"] = _normalise_tenure(val, lease_years)
+                break
+        if not result.get("tenure"):
+            result["tenure"] = "unknown"
+
+        description = prop.get("description", "") or ""
+        # Strip HTML tags
+        description = re.sub(r"<[^>]+>", " ", description).strip()
+        features = [f.get("description", "") for f in (prop.get("keyFeatures") or []) if isinstance(f, dict)]
+
+        result["has_garden"] = int(_has_garden(features, description))
+        result["has_parking"] = int(_has_parking(features, description))
+        result["condition"] = _infer_condition(str(prop.get("propertyType") or ""), features, description)
+        result["description"] = description[:500] if description else None
+
+        images = prop.get("images") or []
+        if images and isinstance(images, list):
+            first = images[0]
+            result["image_url"] = first.get("src") or first.get("url") if isinstance(first, dict) else str(first)
+    else:
+        soup = BeautifulSoup(resp.text, "lxml")
+        result["title"] = soup.title.string if soup.title else None
+        result["address"] = result.get("title")
 
     result["enriched"] = 1
     return result

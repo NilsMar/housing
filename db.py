@@ -1,76 +1,39 @@
 import json
 import os
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
+from contextlib import contextmanager
 
-DB_PATH = Path(os.getenv("DATA_DIR", ".")) / "housing.db"
+import psycopg2
+import psycopg2.extras
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS listings (
-    id            TEXT PRIMARY KEY,
-    url           TEXT,
-    platform      TEXT,
-    title         TEXT,
-    price         INTEGER,
-    bedrooms      INTEGER,
-    bathrooms     INTEGER,
-    sq_ft         INTEGER,
-    postcode      TEXT,
-    address       TEXT,
-    lat           REAL,
-    lng           REAL,
-    has_garden    INTEGER DEFAULT 0,
-    has_parking   INTEGER DEFAULT 0,
-    condition     TEXT DEFAULT 'unknown',
-    dist_km       REAL,
-    commute_m     INTEGER,
-    tenure        TEXT DEFAULT 'unknown',
-    lease_years   INTEGER,
-    score         REAL,
-    score_json    TEXT,
-    previous_price   INTEGER,
-    price_changed_at TEXT,
-    days_listed   INTEGER DEFAULT 0,
-    first_seen    TEXT,
-    last_seen     TEXT,
-    image_url     TEXT,
-    description   TEXT,
-    enriched      INTEGER DEFAULT 0,
-    alerted       INTEGER DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS run_log (
-    run_at        TEXT PRIMARY KEY,
-    new_listings  INTEGER DEFAULT 0,
-    errors        TEXT
-);
-"""
+DB_URL = os.environ["SUPABASE_DB_URL"]
 
 
-def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+@contextmanager
+def _conn():
+    conn = psycopg2.connect(DB_URL)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    """Add columns introduced after initial schema without breaking existing DBs."""
-    for col, defn in [
-        ("commute_m", "INTEGER"),
-        ("previous_price", "INTEGER"),
-        ("price_changed_at", "TEXT"),
-    ]:
-        try:
-            conn.execute(f"ALTER TABLE listings ADD COLUMN {col} {defn}")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+def _row(cursor) -> dict | None:
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+
+def _rows(cursor) -> list[dict]:
+    return [dict(r) for r in cursor.fetchall()]
 
 
 def init_db() -> None:
     with _conn() as conn:
-        conn.executescript(SCHEMA)
-        _migrate(conn)
+        conn.cursor().execute("SELECT 1")
 
 
 def upsert_listing(data: dict) -> bool:
@@ -79,30 +42,29 @@ def upsert_listing(data: dict) -> bool:
     data = {**data, "last_seen": now}
 
     with _conn() as conn:
-        existing = conn.execute(
-            "SELECT id FROM listings WHERE id = ?", (data["id"],)
-        ).fetchone()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        existing = cur.execute(
+            "SELECT price FROM listings WHERE id = %s", (data["id"],)
+        ) or cur.fetchone()
 
         if existing:
-            # Detect price change
-            old_price = conn.execute(
-                "SELECT price FROM listings WHERE id = ?", (data["id"],)
-            ).fetchone()["price"]
+            old_price = existing["price"]
             new_price = data.get("price")
             if new_price and old_price and new_price != old_price:
                 data["previous_price"] = old_price
                 data["price_changed_at"] = now
 
             fields = [k for k in data if k not in ("id", "first_seen")]
-            sql = "UPDATE listings SET " + ", ".join(f"{f} = ?" for f in fields)
-            sql += " WHERE id = ?"
-            conn.execute(sql, [data[f] for f in fields] + [data["id"]])
+            sql = "UPDATE listings SET " + ", ".join(f"{f} = %s" for f in fields)
+            sql += " WHERE id = %s"
+            cur.execute(sql, [data[f] for f in fields] + [data["id"]])
             return False
         else:
             data.setdefault("first_seen", now)
             cols = ", ".join(data.keys())
-            placeholders = ", ".join("?" for _ in data)
-            conn.execute(
+            placeholders = ", ".join("%s" for _ in data)
+            cur.execute(
                 f"INSERT INTO listings ({cols}) VALUES ({placeholders})",
                 list(data.values()),
             )
@@ -111,41 +73,37 @@ def upsert_listing(data: dict) -> bool:
 
 def get_listing(listing_id: str) -> dict | None:
     with _conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM listings WHERE id = ?", (listing_id,)
-        ).fetchone()
-        if row:
-            return dict(row)
-        return None
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM listings WHERE id = %s", (listing_id,))
+        return _row(cur)
 
 
 def get_all_listings() -> list[dict]:
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM listings ORDER BY score DESC NULLS LAST"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM listings ORDER BY score DESC NULLS LAST")
+        return _rows(cur)
 
 
 def get_unenriched() -> list[dict]:
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM listings WHERE enriched = 0"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM listings WHERE enriched = 0")
+        return _rows(cur)
 
 
 def mark_alerted(listing_id: str) -> None:
     with _conn() as conn:
-        conn.execute(
-            "UPDATE listings SET alerted = 1 WHERE id = ?", (listing_id,)
+        conn.cursor().execute(
+            "UPDATE listings SET alerted = 1 WHERE id = %s", (listing_id,)
         )
 
 
 def log_run(new_count: int, errors: list[str]) -> None:
     with _conn() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO run_log (run_at, new_listings, errors) VALUES (?, ?, ?)",
+        conn.cursor().execute(
+            "INSERT INTO run_log (run_at, new_listings, errors) VALUES (%s, %s, %s)"
+            " ON CONFLICT (run_at) DO UPDATE SET new_listings = EXCLUDED.new_listings, errors = EXCLUDED.errors",
             (
                 datetime.now(timezone.utc).isoformat(),
                 new_count,
@@ -156,15 +114,16 @@ def log_run(new_count: int, errors: list[str]) -> None:
 
 def get_last_run_time() -> str | None:
     with _conn() as conn:
-        row = conn.execute(
-            "SELECT run_at FROM run_log ORDER BY run_at DESC LIMIT 1"
-        ).fetchone()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT run_at FROM run_log ORDER BY run_at DESC LIMIT 1")
+        row = _row(cur)
         return row["run_at"] if row else None
 
 
 def get_scored_listings() -> list[dict]:
     with _conn() as conn:
-        rows = conn.execute(
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
             "SELECT * FROM listings WHERE score IS NOT NULL ORDER BY score DESC"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        )
+        return _rows(cur)
