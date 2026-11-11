@@ -17,7 +17,7 @@ weights:
   location: 15   # straight-line proximity to N1 3PJ
   commute: 10    # TfL journey time (falls back to neutral if not yet fetched)
   price_value: 25
-  bedrooms: 20
+  sq_m: 20
   outdoor: 15
   tenure: 10
   condition: 5

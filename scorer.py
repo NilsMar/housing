@@ -77,11 +77,11 @@ def _score_price(price: int | None, bedrooms: int | None, config: dict) -> float
     return max(0.0, min(10.0, 10.0 * (2.0 - ratio)))
 
 
-def _score_bedrooms(bedrooms: int | None) -> float:
-    if not bedrooms:
+def _score_sq_m(sq_ft: int | None) -> float:
+    if not sq_ft:
         return 5.0
-    mapping = {1: 3, 2: 7, 3: 9}
-    return float(mapping.get(int(bedrooms), 10))
+    sq_m = sq_ft * 0.0929
+    return max(0.0, min(10.0, sq_m / 10.0))  # 100 sq_m = 10/10
 
 
 def _score_outdoor(has_garden: int) -> float:
@@ -136,7 +136,7 @@ def score_listing(listing: dict) -> tuple[float, dict]:
         "location": _score_location(listing.get("lat"), listing.get("lng"), config),
         "commute": _score_commute(listing.get("commute_m"), config),
         "price_value": _score_price(listing.get("price"), listing.get("bedrooms"), config),
-        "bedrooms": _score_bedrooms(listing.get("bedrooms")),
+        "sq_m": _score_sq_m(listing.get("sq_ft")),
         "outdoor": _score_outdoor(listing.get("has_garden", 0)),
         "tenure": _score_tenure(listing.get("tenure"), listing.get("lease_years")),
         "condition": _score_condition(listing.get("condition")),

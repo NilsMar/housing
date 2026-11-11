@@ -14,8 +14,8 @@ from pathlib import Path
 
 import db
 
-DIMENSIONS = ["location", "commute", "price_value", "bedrooms", "outdoor", "tenure", "condition"]
-DIM_LABELS = ["Location", "Commute", "Price value", "Bedrooms", "Outdoor", "Tenure", "Condition"]
+DIMENSIONS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition"]
+DIM_LABELS = ["Location", "Commute", "Price value", "Size (m²)", "Outdoor", "Tenure", "Condition"]
 DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5]  # must match config.yaml weights in same order
 
 
@@ -33,11 +33,14 @@ def build_html(output_path: str = "index.html") -> None:
             breakdown = {}
 
         address = l.get("address") or l.get("title") or l["id"]
+        sq_ft = l.get("sq_ft")
+        sq_m = round(sq_ft * 0.0929) if sq_ft else None
         rows.append({
             "id": l["id"],
             "price": l["price"],
             "score": round(l["score"], 1),
             "bedrooms": l.get("bedrooms"),
+            "sq_m": sq_m,
             "days_listed": l.get("days_listed") or 0,
             "address": address,
             "url": l.get("url", "#"),
@@ -165,8 +168,9 @@ function commuteStr(l){
 function hover(l){
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
+  const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
   return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
+         `Score: ${l.score} · ${sz}${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
          `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
 }
 
@@ -225,7 +229,7 @@ const layout = {
   yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
   plot_bgcolor:'white', paper_bgcolor:'white',
   font:{family:'system-ui,sans-serif',size:13},
-  legend:{orientation:'h',y:-0.18},
+  showlegend:true, legend:{orientation:'h',y:-0.18},
   margin:{t:40,b:60,l:60,r:20},
   annotations:[{x:0.01,y:0.99,xref:'paper',yref:'paper',
     text:'⬆ Above line = better value',showarrow:false,
