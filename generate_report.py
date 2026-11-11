@@ -230,7 +230,7 @@ def build_html(output_path: str = "index.html") -> None:
           <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">Garden</th>
           <th data-col="epc_rating" style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">EPC</th>
           <th data-col="commute_m" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Commute</th>
-          <th data-col="days_listed" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Days</th>
+          <th data-col="days_listed" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Listed</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -510,17 +510,19 @@ document.getElementById('scatter').on('plotly_click', evt=>{
     tbody.innerHTML = sorted.map(l => {
       const sq = l.sq_m ? l.sq_m+'m²' : '—';
       const epc = l.epc_rating || '—';
+      const scoreColor = l.score>=70?'#27ae60':l.score>=55?'#e67e22':'#e74c3c';
+      const firstSeen = l.first_seen ? l.first_seen.slice(0,10) : '—';
       return `<tr>
         <td><a href="${l.url}" target="_blank">${l.address}</a></td>
-        <td>£${l.price.toLocaleString('en-GB')}</td>
-        <td>${l.score}</td>
-        <td>${l.bedrooms||'—'}</td>
-        <td>${sq}</td>
+        <td style="text-align:right">£${l.price.toLocaleString('en-GB')}</td>
+        <td style="text-align:right"><b style="color:${scoreColor}">${l.score}</b></td>
+        <td style="text-align:right">${l.bedrooms||'—'}</td>
+        <td style="text-align:right">${sq}</td>
         <td>${tenureStr(l)}</td>
         <td>${l.has_garden?'Yes':'No'}</td>
         <td>${epc}</td>
-        <td>${l.commute_m != null ? l.commute_m+'min' : '—'}</td>
-        <td>${l.days_listed||0}d</td>
+        <td style="text-align:right">${l.commute_m != null ? l.commute_m+'min' : '—'}</td>
+        <td style="text-align:right">${firstSeen}</td>
       </tr>`;
     }).join('');
   }
