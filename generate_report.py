@@ -76,9 +76,14 @@ def build_html(output_path: str = "index.html") -> None:
              box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end}
     .fg label{display:block;font-size:.75rem;font-weight:600;color:#7f8c8d;text-transform:uppercase;
               letter-spacing:.04em;margin-bottom:5px}
-    .price-row{display:flex;align-items:center;gap:6px}
-    .price-row input{width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:.85rem}
-    .price-row span{color:#aaa;font-size:.85rem}
+    .price-slider-wrap{position:relative;width:220px;height:24px}
+    .slider-track{position:absolute;top:50%;left:0;right:0;height:4px;background:#ddd;border-radius:2px;transform:translateY(-50%)}
+    #price-range-fill{position:absolute;top:0;height:100%;background:#27ae60;border-radius:2px}
+    .price-thumb{position:absolute;top:0;left:0;width:100%;height:100%;-webkit-appearance:none;appearance:none;background:transparent;pointer-events:none;margin:0;padding:0}
+    .price-thumb::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:all;width:14px;height:14px;border-radius:50%;background:#27ae60;cursor:pointer;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    .price-thumb::-moz-range-thumb{pointer-events:all;width:14px;height:14px;border-radius:50%;background:#27ae60;cursor:pointer;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3);appearance:none}
+    .price-thumb::-webkit-slider-runnable-track{background:transparent}
+    .price-thumb::-moz-range-track{background:transparent}
     .score-row{display:flex;align-items:center;gap:8px}
     .score-row input[type=range]{width:120px;accent-color:#2980b9}
     .score-row span{font-size:.85rem;font-weight:600;color:#2980b9;min-width:28px}
@@ -102,11 +107,11 @@ def build_html(output_path: str = "index.html") -> None:
 
   <div id="filters">
     <div class="fg">
-      <label>Price</label>
-      <div class="price-row">
-        <input type="number" id="price-min" placeholder="No min" step="25000">
-        <span>–</span>
-        <input type="number" id="price-max" placeholder="No max" step="25000">
+      <label>Price &nbsp;<span id="price-label" style="color:#27ae60;font-weight:700">any</span></label>
+      <div class="price-slider-wrap">
+        <div class="slider-track"><div id="price-range-fill"></div></div>
+        <input type="range" id="price-min-s" class="price-thumb" min="0" max="2000000" value="0" step="25000" style="z-index:1">
+        <input type="range" id="price-max-s" class="price-thumb" min="0" max="2000000" value="2000000" step="25000" style="z-index:2">
       </div>
     </div>
     <div class="fg">
@@ -166,11 +171,12 @@ function commuteStr(l){
   return l.commute_m != null ? `${l.commute_m} min` : '—';
 }
 function hover(l){
+  const beds = l.bedrooms ? `${l.bedrooms}BD` : '?BD';
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
   const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
-  return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${sz}${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
+  return `<b>${l.address} · ${beds}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
+         `Score: ${l.score} · ${sz}${tenureStr(l)}<br>`+
          `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
 }
 
@@ -254,12 +260,34 @@ Plotly.newPlot('scatter', buildTraces(ALL), layout, {responsive:true});
 document.getElementById('count').textContent = ALL.length + ' listing' + (ALL.length!==1?'s':'');
 
 // Filter wiring
-document.getElementById('price-min').addEventListener('input', e=>{
-  priceMin = parseInt(e.target.value)||0; render();
+const PRICE_SLIDER_MAX = 2000000;
+function updatePriceSlider(){
+  const maxVal = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax;
+  const pct1 = priceMin / PRICE_SLIDER_MAX * 100;
+  const pct2 = maxVal / PRICE_SLIDER_MAX * 100;
+  document.getElementById('price-range-fill').style.left = pct1 + '%';
+  document.getElementById('price-range-fill').style.width = (pct2 - pct1) + '%';
+  const minStr = priceMin > 0 ? '£' + (priceMin/1000|0) + 'k' : '';
+  const maxStr = priceMax < Infinity ? '£' + (priceMax/1000|0) + 'k' : '';
+  document.getElementById('price-label').textContent =
+    (!minStr && !maxStr) ? 'any' : (minStr||'any') + ' – ' + (maxStr||'any');
+}
+document.getElementById('price-min-s').addEventListener('input', e=>{
+  const v = parseInt(e.target.value);
+  const curMax = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax;
+  if(v >= curMax){ e.target.value = priceMin; return; }
+  priceMin = v;
+  e.target.style.zIndex = 3; document.getElementById('price-max-s').style.zIndex = 2;
+  updatePriceSlider(); render();
 });
-document.getElementById('price-max').addEventListener('input', e=>{
-  priceMax = parseInt(e.target.value)||Infinity; render();
+document.getElementById('price-max-s').addEventListener('input', e=>{
+  const v = parseInt(e.target.value);
+  if(v <= priceMin){ e.target.value = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax; return; }
+  priceMax = v >= PRICE_SLIDER_MAX ? Infinity : v;
+  e.target.style.zIndex = 3; document.getElementById('price-min-s').style.zIndex = 2;
+  updatePriceSlider(); render();
 });
+updatePriceSlider();
 document.getElementById('score-min').addEventListener('input', e=>{
   minScore = parseInt(e.target.value);
   document.getElementById('score-label').textContent = minScore;
