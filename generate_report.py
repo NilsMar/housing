@@ -101,14 +101,6 @@ def build_html(output_path: str = "index.html") -> None:
     max_price = max((r["price"] for r in rows), default=2000000)
     price_slider_max = ((max_price + 24999) // 25000) * 25000
 
-    valid_sqm = sorted(r["sq_m"] for r in rows if r.get("sq_m") and r["sq_m"] >= 20)
-    if len(valid_sqm) >= 2:
-        sqm_lo, sqm_hi = int(valid_sqm[0]), int(valid_sqm[-1])
-        span = sqm_hi - sqm_lo
-        sqm_breaks = [round(sqm_lo + span * i / 5) for i in range(1, 5)] if span > 0 else [sqm_lo + 10, sqm_lo + 20, sqm_lo + 30, sqm_lo + 40]
-    else:
-        sqm_lo, sqm_hi, sqm_breaks = 50, 110, [62, 74, 86, 98]
-
     listings_json = json.dumps(rows)
     dim_keys_json = json.dumps(DIMENSIONS)
     dim_labels_json = json.dumps(DIM_LABELS)
@@ -199,8 +191,10 @@ const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
 const DIM_WEIGHTS = __DIM_WEIGHTS__;
-const SQM_BREAKS = __SQM_BREAKS__;
-const SQM_SIZES  = [8, 11, 14, 17, 21];
+// Sq_m sizing: linear scale over actual data range; 12px default for unknown
+const _sqmVals = ALL.map(l=>l.sq_m).filter(s=>s&&s>=20);
+const SQM_DATA_MIN = _sqmVals.length ? Math.min(..._sqmVals) : 0;
+const SQM_DATA_MAX = _sqmVals.length ? Math.max(..._sqmVals) : 0;
 const TENURE_COLOR = {
   freehold:       '#27ae60',
   share_freehold: '#2980b9',
@@ -217,9 +211,10 @@ const TENURE_NAME = {
 let maxDays = Infinity, minScore = 0, priceMin = 0, priceMax = Infinity;
 
 function sqmSz(s){
-  if(!s || s < 20) return SQM_SIZES[0];
-  for(let i=0; i<SQM_BREAKS.length; i++) if(s < SQM_BREAKS[i]) return SQM_SIZES[i];
-  return SQM_SIZES[SQM_SIZES.length-1];
+  if(!s || s<20 || !SQM_DATA_MIN) return 12;
+  if(SQM_DATA_MIN===SQM_DATA_MAX) return 14;
+  const t = Math.max(0, Math.min(1, (s-SQM_DATA_MIN)/(SQM_DATA_MAX-SQM_DATA_MIN)));
+  return Math.round(8 + t*12);
 }
 
 function dimActual(dim, l){
@@ -301,17 +296,15 @@ function buildTraces(ls){
   const vl = valueLine(ls);
   if(vl) traces.push(vl);
 
-  // Size legend (dummy traces — null data, appear only in legend)
-  const sqmLabels = [
-    `<${SQM_BREAKS[0]}m²`,
-    ...SQM_BREAKS.slice(0,-1).map((b,i) => `${b}–${SQM_BREAKS[i+1]}m²`),
-    `>${SQM_BREAKS[SQM_BREAKS.length-1]}m²`,
-  ];
-  sqmLabels.forEach((lbl,i) => {
+  // Size legend: 3 entries spanning actual data range (or single default dot)
+  const sqmLegend = SQM_DATA_MAX > SQM_DATA_MIN
+    ? [SQM_DATA_MIN, Math.round((SQM_DATA_MIN+SQM_DATA_MAX)/2), SQM_DATA_MAX]
+    : [SQM_DATA_MIN || null];
+  sqmLegend.forEach((v,i) => {
     traces.push({
       type:'scatter', x:[null], y:[null], mode:'markers',
-      marker:{size:SQM_SIZES[i], color:'#7f8c8d', line:{width:1,color:'white'}},
-      name:lbl,
+      marker:{size:sqmSz(v), color:'#7f8c8d', line:{width:1,color:'white'}},
+      name: v ? `${Math.round(v)}m²` : '?m²',
       legendgroup:'sqm',
       legendgrouptitle: i===0 ? {text:'Size (m²)'} : {},
       showlegend:true, hoverinfo:'skip',
@@ -442,7 +435,6 @@ document.getElementById('scatter').on('plotly_click', evt=>{
         .replace("__DIM_LABELS__", dim_labels_json)
         .replace("__DIM_WEIGHTS__", dim_weights_json)
         .replace("__PRICE_SLIDER_MAX__", str(price_slider_max))
-        .replace("__SQM_BREAKS__", json.dumps(sqm_breaks))
     )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")
