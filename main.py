@@ -69,14 +69,22 @@ def run(dry_run: bool = False) -> None:
             errors.append(f"scrape:{listing['id']}: {e}")
             enriched = {**listing, "enriched": 1}  # mark done so we don't retry every run
 
-        # Compute distance (kept for reference) and TfL commute time
+        # Compute distance to home postcode
         dist = scorer.compute_distance(enriched)
         if dist is not None:
             enriched["dist_km"] = dist
 
+        # TfL commute time (kept for reference)
         commute = scorer.compute_commute_time(enriched)
         if commute is not None:
             enriched["commute_m"] = commute
+
+        # Walk time to nearest tube/overground station (used for commute score)
+        station_name, walk_min = scorer.compute_nearest_station(enriched)
+        if station_name is not None:
+            enriched["nearest_station"] = station_name
+        if walk_min is not None:
+            enriched["walk_to_station_m"] = walk_min
 
         # Compute score
         total, breakdown = scorer.score_listing(enriched)

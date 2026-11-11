@@ -4,6 +4,7 @@ criteria:
   property_types: [flat, house]
   radius_km: 2.0
   max_commute_minutes: 30
+  max_walk_to_station_minutes: 20  # commute score: walk time to nearest tube/overground
   home_postcode: ""  # set HOME_POSTCODE env var — do not commit your address here
   # Expected median prices per bedroom count in the N1 area (£)
   # Used for price_value scoring — adjust to market conditions
@@ -15,12 +16,13 @@ criteria:
 
 weights:
   location: 15   # straight-line proximity to N1 3PJ
-  commute: 10    # TfL journey time (falls back to neutral if not yet fetched)
+  commute: 10    # walk time to nearest tube/overground station
   price_value: 25
   sq_m: 20
   outdoor: 15
   tenure: 10
-  condition: 5
+  condition: 3
+  epc: 2
 
 alert_threshold: 75  # score out of 100 to trigger email
 
