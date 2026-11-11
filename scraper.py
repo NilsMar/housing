@@ -91,70 +91,106 @@ def _infer_condition(listing_type: str, features: list[str], description: str) -
     return "unknown"
 
 
+def _decode_rm_page_model(html: str) -> dict | None:
+    """Decode Rightmove's current index-encoded __PAGE_MODEL format."""
+    m = re.search(r"window\.__PAGE_MODEL\s*=\s*(\{.*)", html, re.DOTALL)
+    if not m:
+        return None
+    text = m.group(1)
+    depth = end = 0
+    for i, ch in enumerate(text):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    try:
+        raw = json.loads(text[:end])
+        arr = json.loads(raw["data"])
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+    def resolve(idx):
+        val = arr[idx]
+        if isinstance(val, dict):
+            return {k: resolve(v) for k, v in val.items()}
+        if isinstance(val, list):
+            return [resolve(v) for v in val]
+        return val
+
+    top = resolve(0)
+    return top.get("propertyData")
+
+
 def scrape_rightmove(url: str) -> dict:
     resp = _get(url)
     html = resp.text
-
-    # Rightmove embeds full data in window.PAGE_MODEL
-    data = _extract_json_var(html, "window.PAGE_MODEL")
-
-    # Fallback: try __PRELOADED_STATE__
-    if not data:
-        data = _extract_json_var(html, "window.__PRELOADED_STATE__")
-
     result: dict = {}
 
-    if data:
-        prop = data.get("propertyData", data)
-        prices = prop.get("prices", {})
-        result["price"] = prices.get("primaryPrice") or prop.get("price")
+    prop = _decode_rm_page_model(html)
+
+    # Fallback to legacy single-underscore format
+    if not prop:
+        raw = _extract_json_var(html, "window.PAGE_MODEL") or _extract_json_var(html, "window.__PRELOADED_STATE__")
+        if raw:
+            prop = raw.get("propertyData", raw)
+
+    if prop:
+        # Price — new format returns "£800,000" string; old format returns int
+        price_raw = (prop.get("prices") or {}).get("primaryPrice") or prop.get("price")
+        if price_raw:
+            price_clean = re.sub(r"[^\d]", "", str(price_raw))
+            result["price"] = int(price_clean) if price_clean else None
+
         result["bedrooms"] = prop.get("bedrooms")
         result["bathrooms"] = prop.get("bathrooms")
-        result["sq_ft"] = (
-            prop.get("floorArea", {}).get("sqFeet")
-            or prop.get("floorArea", {}).get("value")
-        )
 
-        loc = prop.get("location", {})
+        # Floor area: new format has sizings list; old format has floorArea dict
+        for sizing in prop.get("sizings") or []:
+            if isinstance(sizing, dict) and sizing.get("unit") == "sqft":
+                result["sq_ft"] = sizing.get("minimumSize")
+                break
+        if not result.get("sq_ft"):
+            fa = prop.get("floorArea") or {}
+            result["sq_ft"] = fa.get("sqFeet") or fa.get("value")
+
+        loc = prop.get("location") or {}
         result["lat"] = loc.get("latitude")
         result["lng"] = loc.get("longitude")
-        result["postcode"] = loc.get("outcode") or loc.get("postcode")
 
-        tenure_raw = prop.get("tenure", {})
-        if isinstance(tenure_raw, dict):
-            tenure_str = tenure_raw.get("tenureType", "")
-            lease_years = tenure_raw.get("yearsRemainingOnLease")
-        else:
-            tenure_str = str(tenure_raw)
-            lease_years = None
+        addr = prop.get("address") or {}
+        result["title"] = addr.get("displayAddress") if isinstance(addr, dict) else str(addr)
+        result["address"] = result["title"]
+        result["postcode"] = addr.get("outcode") or addr.get("postcode") if isinstance(addr, dict) else None
 
+        tenure_raw = prop.get("tenure") or {}
+        tenure_str = tenure_raw.get("tenureType", "") if isinstance(tenure_raw, dict) else str(tenure_raw)
+        lease_years = tenure_raw.get("yearsRemainingOnLease") if isinstance(tenure_raw, dict) else None
         result["tenure"], result["lease_years"] = _normalise_tenure(tenure_str, lease_years)
 
-        features = prop.get("keyFeatures", [])
-        if isinstance(features, list):
-            features = [str(f) for f in features]
-        else:
-            features = []
+        features = prop.get("keyFeatures") or []
+        features = [str(f) for f in features] if isinstance(features, list) else []
 
-        desc = prop.get("description", {})
-        if isinstance(desc, dict):
-            description = desc.get("htmlSummary", "") or desc.get("shortDescription", "")
+        # Description: new format nests under text.description; old under description
+        text_obj = prop.get("text")
+        if isinstance(text_obj, dict):
+            description = text_obj.get("description") or text_obj.get("shortDescription") or ""
         else:
-            description = str(desc)
+            desc = prop.get("description") or {}
+            description = (desc.get("htmlSummary") or desc.get("shortDescription") or "") if isinstance(desc, dict) else str(desc)
 
         result["has_garden"] = int(_has_garden(features, description))
         result["has_parking"] = int(_has_parking(features, description))
-        result["condition"] = _infer_condition(prop.get("propertySubType", ""), features, description)
-        result["title"] = prop.get("address", {}).get("displayAddress") if isinstance(prop.get("address"), dict) else prop.get("address")
-        result["address"] = result["title"]
+        result["condition"] = _infer_condition(str(prop.get("propertySubType") or ""), features, description)
         result["description"] = description[:500] if description else None
 
-        images = prop.get("images", [])
+        images = prop.get("images") or []
         if images and isinstance(images, list):
             first = images[0]
             result["image_url"] = first.get("url") if isinstance(first, dict) else str(first)
     else:
-        # Fallback: basic BeautifulSoup parse
         soup = BeautifulSoup(html, "lxml")
         result["title"] = soup.title.string if soup.title else None
         result["address"] = result.get("title")
