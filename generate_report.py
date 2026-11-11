@@ -232,6 +232,19 @@ function buildTraces(ls){
   traces.push(overlay);
   const vl = valueLine(ls);
   if(vl) traces.push(vl);
+
+  // Bedroom size legend (dummy traces — null data, appear only in legend)
+  [[1,9],[2,13],[3,17],[4,21]].forEach(([beds,sz],i) => {
+    traces.push({
+      type:'scatter', x:[null], y:[null], mode:'markers',
+      marker:{size:sz, color:'#7f8c8d', line:{width:1,color:'white'}},
+      name:`${beds}BD`,
+      legendgroup:'bedrooms',
+      legendgrouptitle: i===0 ? {text:'Bedrooms'} : {},
+      showlegend:true, hoverinfo:'skip',
+    });
+  });
+
   return traces;
 }
 
@@ -241,8 +254,8 @@ const layout = {
   yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
   plot_bgcolor:'white', paper_bgcolor:'white',
   font:{family:'system-ui,sans-serif',size:13},
-  showlegend:true, legend:{orientation:'h',y:-0.18},
-  margin:{t:40,b:60,l:60,r:20},
+  showlegend:true, legend:{orientation:'h',y:-0.25},
+  margin:{t:40,b:80,l:60,r:20},
   annotations:[{x:0.01,y:0.99,xref:'paper',yref:'paper',
     text:'⬆ Above line = better value',showarrow:false,
     font:{size:11,color:'rgba(100,100,200,0.65)'},xanchor:'left',yanchor:'top'}],
@@ -325,13 +338,13 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 
   const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
   const closed = [...vals, vals[0]];
-  // Axis labels include weight so users see the multiplier
-  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (×${DIM_WEIGHTS[i]}%)`);
+  // Axis labels show dimension name + actual raw score
+  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (${vals[i]}/10)`);
   const theta = [...axisLabels, axisLabels[0]];
-  // Hover shows: raw score, weight, and resulting contribution to total
+  // Hover shows: raw score, weight, and resulting % contribution to total
   const hoverText = DIM_LABELS.map((lbl,i) => {
     const contrib = (vals[i] * DIM_WEIGHTS[i] / 10).toFixed(1);
-    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib} pts</b>`;
+    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib}%</b>`;
   });
 
   Plotly.react('spider',[{
