@@ -199,6 +199,8 @@ const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
 const DIM_WEIGHTS = __DIM_WEIGHTS__;
+const SQM_BREAKS = __SQM_BREAKS__;
+const SQM_SIZES  = [8, 11, 14, 17, 21];
 const TENURE_COLOR = {
   freehold:       '#27ae60',
   share_freehold: '#2980b9',
@@ -214,7 +216,11 @@ const TENURE_NAME = {
 
 let maxDays = Infinity, minScore = 0, priceMin = 0, priceMax = Infinity;
 
-function sqmSz(s){ if(!s)return 11; if(s<50)return 8; if(s<70)return 11; if(s<90)return 14; if(s<110)return 17; return 21; }
+function sqmSz(s){
+  if(!s || s < 20) return SQM_SIZES[0];
+  for(let i=0; i<SQM_BREAKS.length; i++) if(s < SQM_BREAKS[i]) return SQM_SIZES[i];
+  return SQM_SIZES[SQM_SIZES.length-1];
+}
 
 function dimActual(dim, l){
   if(dim==='commute')     return l.commute_m != null ? `${l.commute_m}min` : '—';
@@ -240,10 +246,10 @@ function hover(l){
   const beds = l.bedrooms ? `${l.bedrooms}BD` : '?BD';
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
-  const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
+  const sz = l.sq_m ? `${l.sq_m}m²` : '?m²';
   const also = (l.also_on||[]).map(x=>`Also on <a href="${x.url}" target="_blank">${x.platform}</a>`).join(' · ');
-  return `<b>${l.address} · ${beds}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${sz}${tenureStr(l)}<br>`+
+  return `<b>${l.address} · ${beds} · ${sz}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
+         `Score: ${l.score} · ${tenureStr(l)}<br>`+
          `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`+
          (also ? `<br><span style="color:#7f8c8d;font-size:.85em">${also}</span>` : '');
 }
@@ -296,10 +302,15 @@ function buildTraces(ls){
   if(vl) traces.push(vl);
 
   // Size legend (dummy traces — null data, appear only in legend)
-  [['<50m²',8],['50–70m²',11],['70–90m²',14],['90–110m²',17],['>110m²',21]].forEach(([lbl,sz],i) => {
+  const sqmLabels = [
+    `<${SQM_BREAKS[0]}m²`,
+    ...SQM_BREAKS.slice(0,-1).map((b,i) => `${b}–${SQM_BREAKS[i+1]}m²`),
+    `>${SQM_BREAKS[SQM_BREAKS.length-1]}m²`,
+  ];
+  sqmLabels.forEach((lbl,i) => {
     traces.push({
       type:'scatter', x:[null], y:[null], mode:'markers',
-      marker:{size:sz, color:'#7f8c8d', line:{width:1,color:'white'}},
+      marker:{size:SQM_SIZES[i], color:'#7f8c8d', line:{width:1,color:'white'}},
       name:lbl,
       legendgroup:'sqm',
       legendgrouptitle: i===0 ? {text:'Size (m²)'} : {},
@@ -431,6 +442,7 @@ document.getElementById('scatter').on('plotly_click', evt=>{
         .replace("__DIM_LABELS__", dim_labels_json)
         .replace("__DIM_WEIGHTS__", dim_weights_json)
         .replace("__PRICE_SLIDER_MAX__", str(price_slider_max))
+        .replace("__SQM_BREAKS__", json.dumps(sqm_breaks))
     )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")
