@@ -15,9 +15,14 @@
              box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end}
     .fg label{display:block;font-size:.75rem;font-weight:600;color:#7f8c8d;text-transform:uppercase;
               letter-spacing:.04em;margin-bottom:5px}
-    .price-row{display:flex;align-items:center;gap:6px}
-    .price-row input{width:110px;padding:5px 8px;border:1px solid #ddd;border-radius:5px;font-size:.85rem}
-    .price-row span{color:#aaa;font-size:.85rem}
+    .price-slider-wrap{position:relative;width:220px;height:24px}
+    .slider-track{position:absolute;top:50%;left:0;right:0;height:4px;background:#ddd;border-radius:2px;transform:translateY(-50%)}
+    #price-range-fill{position:absolute;top:0;height:100%;background:#27ae60;border-radius:2px}
+    .price-thumb{position:absolute;top:0;left:0;width:100%;height:100%;-webkit-appearance:none;appearance:none;background:transparent;pointer-events:none;margin:0;padding:0}
+    .price-thumb::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:all;width:14px;height:14px;border-radius:50%;background:#27ae60;cursor:pointer;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+    .price-thumb::-moz-range-thumb{pointer-events:all;width:14px;height:14px;border-radius:50%;background:#27ae60;cursor:pointer;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3);appearance:none}
+    .price-thumb::-webkit-slider-runnable-track{background:transparent}
+    .price-thumb::-moz-range-track{background:transparent}
     .score-row{display:flex;align-items:center;gap:8px}
     .score-row input[type=range]{width:120px;accent-color:#2980b9}
     .score-row span{font-size:.85rem;font-weight:600;color:#2980b9;min-width:28px}
@@ -41,11 +46,11 @@
 
   <div id="filters">
     <div class="fg">
-      <label>Price</label>
-      <div class="price-row">
-        <input type="number" id="price-min" placeholder="No min" step="25000">
-        <span>–</span>
-        <input type="number" id="price-max" placeholder="No max" step="25000">
+      <label>Price &nbsp;<span id="price-label" style="color:#27ae60;font-weight:700">any</span></label>
+      <div class="price-slider-wrap">
+        <div class="slider-track"><div id="price-range-fill"></div></div>
+        <input type="range" id="price-min-s" class="price-thumb" min="0" max="1000000" value="0" step="25000" style="z-index:1">
+        <input type="range" id="price-max-s" class="price-thumb" min="0" max="1000000" value="1000000" step="25000" style="z-index:2">
       </div>
     </div>
     <div class="fg">
@@ -74,10 +79,15 @@
   </div>
 
 <script>
-const ALL = [];
+const ALL = [{"id": "rightmove:93634452", "platform": "rightmove", "price": 800000, "score": 71.8, "bedrooms": 2, "sq_m": 57, "lat": 51.5432, "lng": -0.085961, "days_listed": 0, "address": "Englefield Road, De Beauvoir, London, N1", "url": "https://www.rightmove.co.uk/properties/93634452", "tenure": "leasehold", "has_garden": 1, "image_url": "https://media.rightmove.co.uk/property-photo/bdca68a70/93634452/bdca68a70a825a769fbec29729df1a96.jpeg", "previous_price": null, "price_changed_at": null, "commute_m": 7, "lease_years": 123, "dist_km": 0.319, "condition": "modern", "breakdown": {"location": 8.41, "commute": 7.67, "price_value": 7.69, "sq_m": 5.67, "outdoor": 10.0, "tenure": 2.0, "condition": 8.0}, "also_on": [{"platform": "onthemarket", "url": "https://www.onthemarket.com/details/20423041"}, {"platform": "zoopla", "url": "https://www.zoopla.co.uk/for-sale/details/74350877"}]}, {"id": "onthemarket:20585027", "platform": "onthemarket", "price": 795000, "score": 66.3, "bedrooms": 2, "sq_m": null, "lat": 51.5414, "lng": -0.086242, "days_listed": 0, "address": "Cleveland Road, London, N1", "url": "https://www.onthemarket.com/details/20585027", "tenure": "leasehold", "has_garden": 1, "image_url": "https://media.onthemarket.com/properties/20585027/1653271821/image-0-81x55.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 10, "lease_years": 88, "dist_km": 0.511, "condition": "modern", "breakdown": {"location": 7.45, "commute": 6.67, "price_value": 7.77, "sq_m": 5.0, "outdoor": 10.0, "tenure": 0.0, "condition": 8.0}}, {"id": "zoopla:73561971", "platform": "zoopla", "price": 1000000, "score": 65.2, "bedrooms": 3, "sq_m": 139, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Enfield Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/73561971", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/fc9fafe71fc0ea04ad99dd987a7e3fe32dba72cf.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 104, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 8.89, "sq_m": 10.0, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0}}, {"id": "zoopla:74364986", "platform": "zoopla", "price": 725000, "score": 64.0, "bedrooms": 3, "sq_m": 80, "lat": 51.5438, "lng": -0.0661106, "days_listed": 0, "address": "Forest Road, London E8", "url": "https://www.zoopla.co.uk/for-sale/details/74364986", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/e27ff9d58e2fa7c7e39f114d69f35ba15907994b.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 16, "lease_years": 996, "dist_km": 1.48, "condition": "unknown", "breakdown": {"location": 2.6, "commute": 4.67, "price_value": 10.0, "sq_m": 7.99, "outdoor": 4.0, "tenure": 6.0, "condition": 5.0}}, {"id": "zoopla:71165179", "platform": "zoopla", "price": 800000, "score": 64.0, "bedrooms": 3, "sq_m": 80, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Hertford Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/71165179", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/677f65acea360acf3f208cd85e84e84ed2472bfe.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 111, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 10.0, "sq_m": 7.98, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0}}, {"id": "zoopla:74727621", "platform": "zoopla", "price": 775000, "score": 63.7, "bedrooms": 3, "sq_m": 89, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "De Beauvoir Square, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74727621", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/645/430/f4359ad72b4147141b1d84b5b06f1b3d36013d07.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 83, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 10.0, "sq_m": 8.87, "outdoor": 4.0, "tenure": 0.0, "condition": 5.0}}, {"id": "zoopla:74425126", "platform": "zoopla", "price": 825000, "score": 57.7, "bedrooms": 2, "sq_m": 82, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Mitchison Road, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74425126", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/f22b948f8d38a4e770ebe05e0634832b9cf407bd.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 113, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 7.31, "sq_m": 8.23, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0}}, {"id": "zoopla:74096064", "platform": "zoopla", "price": 900000, "score": 55.9, "bedrooms": 2, "sq_m": 87, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Southgate Road, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74096064", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/44247f1d02646fcfb57c3cabc92b0f10da6ef3bb.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 118, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 6.15, "sq_m": 8.74, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0}}, {"id": "zoopla:74676722", "platform": "zoopla", "price": 900000, "score": 52.7, "bedrooms": 2, "sq_m": 82, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Southgate Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74676722", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/2190720dd42aee62b26b7c3d7a6ce063a35331ca.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 88, "dist_km": 1.139, "condition": "unknown", "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 6.15, "sq_m": 8.18, "outdoor": 4.0, "tenure": 0.0, "condition": 5.0}}, {"id": "onthemarket:20685702", "platform": "onthemarket", "price": 750000, "score": 51.7, "bedrooms": 3, "sq_m": null, "lat": 51.5412, "lng": -0.116821, "days_listed": 0, "address": "348 Caledonian Road, London N1 1DU", "url": "https://www.onthemarket.com/details/20685702", "tenure": "unknown", "has_garden": 0, "image_url": "https://media.onthemarket.com/properties/20685702/1656460164/image-0-81x55.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 25, "lease_years": null, "dist_km": 2.124, "condition": "modern", "breakdown": {"location": 0.0, "commute": 1.67, "price_value": 10.0, "sq_m": 5.0, "outdoor": 4.0, "tenure": 5.0, "condition": 8.0}}];
 const DIM_KEYS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition"];
 const DIM_LABELS = ["Location", "Commute", "Price value", "Size (m\u00b2)", "Outdoor", "Tenure", "Condition"];
 const DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5];
+const HOME_POSTCODE = "";
+// Sq_m sizing: linear scale over actual data range; 12px default for unknown
+const _sqmVals = ALL.map(l=>l.sq_m).filter(s=>s&&s>=20);
+const SQM_DATA_MIN = _sqmVals.length ? Math.min(..._sqmVals) : 0;
+const SQM_DATA_MAX = _sqmVals.length ? Math.max(..._sqmVals) : 0;
 const TENURE_COLOR = {
   freehold:       '#27ae60',
   share_freehold: '#2980b9',
@@ -93,7 +103,23 @@ const TENURE_NAME = {
 
 let maxDays = Infinity, minScore = 0, priceMin = 0, priceMax = Infinity;
 
-function bedSz(b){ return({1:9,2:13,3:17,4:21}[b]||13); }
+function sqmSz(s){
+  if(!s || s<20 || !SQM_DATA_MIN) return 12;
+  if(SQM_DATA_MIN===SQM_DATA_MAX) return 14;
+  const t = Math.max(0, Math.min(1, (s-SQM_DATA_MIN)/(SQM_DATA_MAX-SQM_DATA_MIN)));
+  return Math.round(8 + t*12);
+}
+
+function dimActual(dim, l){
+  if(dim==='commute')     return l.commute_m != null ? `${l.commute_m}min` : '—';
+  if(dim==='sq_m')        return l.sq_m ? `${l.sq_m}m²` : '—';
+  if(dim==='price_value') return `£${(l.price/1000|0)}k`;
+  if(dim==='outdoor')     return l.has_garden ? 'garden ✓' : 'no garden';
+  if(dim==='tenure')      return tenureStr(l).split(' ')[0];
+  if(dim==='location')    return l.dist_km != null ? `${l.dist_km.toFixed(1)}km` : '—';
+  if(dim==='condition')   return l.condition || '—';
+  return '—';
+}
 
 function tenureStr(l){
   if(l.tenure==='leasehold') return l.lease_years ? `Leasehold (${l.lease_years}yr)` : 'Leasehold';
@@ -102,15 +128,19 @@ function tenureStr(l){
   return l.tenure||'Unknown tenure';
 }
 function commuteStr(l){
-  return l.commute_m != null ? `${l.commute_m} min` : '—';
+  if(l.commute_m == null) return '—';
+  return HOME_POSTCODE ? `${l.commute_m} min → ${HOME_POSTCODE}` : `${l.commute_m} min`;
 }
 function hover(l){
+  const beds = l.bedrooms ? `${l.bedrooms}BD` : '?BD';
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
-  const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
-  return `<b>${l.address}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
-         `Score: ${l.score} · ${sz}${l.bedrooms||'?'} bed · ${tenureStr(l)}<br>`+
-         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
+  const sz = l.sq_m ? `${l.sq_m}m²` : '?m²';
+  const also = (l.also_on||[]).map(x=>`Also on <a href="${x.url}" target="_blank">${x.platform}</a>`).join(' · ');
+  return `<b>${l.address} · ${beds} · ${sz}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
+         `Score: ${l.score} · ${tenureStr(l)}<br>`+
+         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`+
+         (also ? `<br><span style="color:#7f8c8d;font-size:.85em">${also}</span>` : '');
 }
 
 function valueLine(ls){
@@ -138,7 +168,7 @@ function buildTraces(ls){
   const traces = Object.entries(groups).map(([t, items]) => ({
     type:'scatter', x:items.map(l=>l.price), y:items.map(l=>l.score), mode:'markers',
     marker:{
-      size:items.map(l=>bedSz(l.bedrooms)),
+      size:items.map(l=>sqmSz(l.sq_m)),
       color:TENURE_COLOR[t],
       line:{width:1,color:'white'}, opacity:0.85,
     },
@@ -159,6 +189,22 @@ function buildTraces(ls){
   traces.push(overlay);
   const vl = valueLine(ls);
   if(vl) traces.push(vl);
+
+  // Size legend: 3 entries spanning actual data range (or single default dot)
+  const sqmLegend = SQM_DATA_MAX > SQM_DATA_MIN
+    ? [SQM_DATA_MIN, Math.round((SQM_DATA_MIN+SQM_DATA_MAX)/2), SQM_DATA_MAX]
+    : [SQM_DATA_MIN || null];
+  sqmLegend.forEach((v,i) => {
+    traces.push({
+      type:'scatter', x:[null], y:[null], mode:'markers',
+      marker:{size:sqmSz(v), color:'#7f8c8d', line:{width:1,color:'white'}},
+      name: v ? `${Math.round(v)}m²` : '?m²',
+      legendgroup:'sqm',
+      legendgrouptitle: i===0 ? {text:'Size (m²)'} : {},
+      showlegend:true, hoverinfo:'skip',
+    });
+  });
+
   return traces;
 }
 
@@ -168,8 +214,8 @@ const layout = {
   yaxis:{title:'Weighted score (0–100)',range:[0,105],gridcolor:'#f0f0f0'},
   plot_bgcolor:'white', paper_bgcolor:'white',
   font:{family:'system-ui,sans-serif',size:13},
-  showlegend:true, legend:{orientation:'h',y:-0.18},
-  margin:{t:40,b:60,l:60,r:20},
+  showlegend:true, legend:{orientation:'h',y:-0.25},
+  margin:{t:40,b:80,l:60,r:20},
   annotations:[{x:0.01,y:0.99,xref:'paper',yref:'paper',
     text:'⬆ Above line = better value',showarrow:false,
     font:{size:11,color:'rgba(100,100,200,0.65)'},xanchor:'left',yanchor:'top'}],
@@ -193,12 +239,34 @@ Plotly.newPlot('scatter', buildTraces(ALL), layout, {responsive:true});
 document.getElementById('count').textContent = ALL.length + ' listing' + (ALL.length!==1?'s':'');
 
 // Filter wiring
-document.getElementById('price-min').addEventListener('input', e=>{
-  priceMin = parseInt(e.target.value)||0; render();
+const PRICE_SLIDER_MAX = 1000000;
+function updatePriceSlider(){
+  const maxVal = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax;
+  const pct1 = priceMin / PRICE_SLIDER_MAX * 100;
+  const pct2 = maxVal / PRICE_SLIDER_MAX * 100;
+  document.getElementById('price-range-fill').style.left = pct1 + '%';
+  document.getElementById('price-range-fill').style.width = (pct2 - pct1) + '%';
+  const minStr = priceMin > 0 ? '£' + (priceMin/1000|0) + 'k' : '';
+  const maxStr = priceMax < Infinity ? '£' + (priceMax/1000|0) + 'k' : '';
+  document.getElementById('price-label').textContent =
+    (!minStr && !maxStr) ? 'any' : (minStr||'any') + ' – ' + (maxStr||'any');
+}
+document.getElementById('price-min-s').addEventListener('input', e=>{
+  const v = parseInt(e.target.value);
+  const curMax = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax;
+  if(v >= curMax){ e.target.value = priceMin; return; }
+  priceMin = v;
+  e.target.style.zIndex = 3; document.getElementById('price-max-s').style.zIndex = 2;
+  updatePriceSlider(); render();
 });
-document.getElementById('price-max').addEventListener('input', e=>{
-  priceMax = parseInt(e.target.value)||Infinity; render();
+document.getElementById('price-max-s').addEventListener('input', e=>{
+  const v = parseInt(e.target.value);
+  if(v <= priceMin){ e.target.value = priceMax === Infinity ? PRICE_SLIDER_MAX : priceMax; return; }
+  priceMax = v >= PRICE_SLIDER_MAX ? Infinity : v;
+  e.target.style.zIndex = 3; document.getElementById('price-min-s').style.zIndex = 2;
+  updatePriceSlider(); render();
 });
+updatePriceSlider();
 document.getElementById('score-min').addEventListener('input', e=>{
   minScore = parseInt(e.target.value);
   document.getElementById('score-label').textContent = minScore;
@@ -230,13 +298,13 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 
   const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
   const closed = [...vals, vals[0]];
-  // Axis labels include weight so users see the multiplier
-  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (×${DIM_WEIGHTS[i]}%)`);
+  // Axis labels show dimension name + real-world value
+  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (${dimActual(DIM_KEYS[i], l)})`);
   const theta = [...axisLabels, axisLabels[0]];
-  // Hover shows: raw score, weight, and resulting contribution to total
+  // Hover shows: real-world value, raw score, weight, % contribution
   const hoverText = DIM_LABELS.map((lbl,i) => {
     const contrib = (vals[i] * DIM_WEIGHTS[i] / 10).toFixed(1);
-    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib} pts</b>`;
+    return `<b>${lbl}</b><br>${dimActual(DIM_KEYS[i], l)} · ${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib}%</b>`;
   });
 
   Plotly.react('spider',[{
