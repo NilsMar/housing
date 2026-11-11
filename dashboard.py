@@ -12,7 +12,7 @@ load_dotenv()
 
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, dash_table, dcc, html
 
 import db
 
@@ -206,6 +206,37 @@ def make_spider(listing: dict) -> go.Figure:
     return fig
 
 
+TABLE_COLUMNS = [
+    {"name": "Address", "id": "address", "presentation": "markdown"},
+    {"name": "Price (£)", "id": "price"},
+    {"name": "Score", "id": "score"},
+    {"name": "Beds", "id": "bedrooms"},
+    {"name": "Sq m", "id": "sq_m"},
+    {"name": "Tenure", "id": "tenure"},
+    {"name": "Garden", "id": "has_garden"},
+    {"name": "Days listed", "id": "days_listed"},
+    {"name": "First seen", "id": "first_seen"},
+]
+
+
+def _listing_to_row(l: dict) -> dict:
+    address = l.get("address") or l.get("title") or l["id"]
+    url = l.get("url", "")
+    label = f"[{address}]({url})" if url else address
+    first_seen = (l.get("first_seen") or "")[:10]
+    return {
+        "address": label,
+        "price": f"£{l['price']:,}" if l.get("price") else "",
+        "score": l.get("score") or "",
+        "bedrooms": l.get("bedrooms") or "",
+        "sq_m": l.get("sq_m") or "",
+        "tenure": l.get("tenure") or "",
+        "has_garden": "Yes" if l.get("has_garden") else "No",
+        "days_listed": l.get("days_listed") or "",
+        "first_seen": first_seen,
+    }
+
+
 def build_app() -> Dash:
     app = Dash(__name__, title="London Property Tracker")
 
@@ -213,19 +244,39 @@ def build_app() -> Dash:
         style={"fontFamily": "system-ui, sans-serif", "maxWidth": "1100px", "margin": "0 auto", "padding": "20px"},
         children=[
             html.H1("London Property Tracker", style={"color": "#2c3e50", "marginBottom": "4px"}),
-            html.P(
-                "Click any dot to drill into its scoring breakdown.",
-                style={"color": "#7f8c8d", "marginTop": 0},
-            ),
-            dcc.Graph(id="scatter", style={"height": "520px"}),
-            html.Div(
-                id="spider-container",
-                style={"marginTop": "20px"},
+            dcc.Interval(id="refresh", interval=5 * 60 * 1000, n_intervals=0),
+            dcc.Tabs(
+                id="tabs",
+                value="charts",
+                style={"marginTop": "16px"},
                 children=[
-                    dcc.Graph(id="spider", style={"height": "420px", "display": "none"})
+                    dcc.Tab(
+                        label="Charts",
+                        value="charts",
+                        children=[
+                            html.P(
+                                "Click any dot to drill into its scoring breakdown.",
+                                style={"color": "#7f8c8d", "margin": "12px 0 4px"},
+                            ),
+                            dcc.Graph(id="scatter", style={"height": "520px"}),
+                            html.Div(
+                                id="spider-container",
+                                style={"marginTop": "20px"},
+                                children=[
+                                    dcc.Graph(id="spider", style={"height": "420px", "display": "none"})
+                                ],
+                            ),
+                        ],
+                    ),
+                    dcc.Tab(
+                        label="Data",
+                        value="data",
+                        children=[
+                            html.Div(id="table-container", style={"marginTop": "16px"}),
+                        ],
+                    ),
                 ],
             ),
-            dcc.Interval(id="refresh", interval=5 * 60 * 1000, n_intervals=0),
         ],
     )
 
@@ -262,6 +313,38 @@ def build_app() -> Dash:
             return go.Figure(), hidden
 
         return make_spider(listing), visible
+
+    @app.callback(
+        Output("table-container", "children"),
+        Input("refresh", "n_intervals"),
+    )
+    def refresh_table(_):
+        listings = db.get_all_listings()
+        rows = [_listing_to_row(l) for l in listings]
+        return dash_table.DataTable(
+            data=rows,
+            columns=TABLE_COLUMNS,
+            sort_action="native",
+            filter_action="native",
+            page_size=25,
+            markdown_options={"link_target": "_blank"},
+            style_table={"overflowX": "auto"},
+            style_cell={
+                "fontFamily": "system-ui, sans-serif",
+                "fontSize": "13px",
+                "padding": "8px 12px",
+                "textAlign": "left",
+                "whiteSpace": "normal",
+            },
+            style_header={
+                "fontWeight": "600",
+                "backgroundColor": "#f8f9fa",
+                "borderBottom": "2px solid #dee2e6",
+            },
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
+            ],
+        )
 
     return app
 
