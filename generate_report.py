@@ -19,9 +19,9 @@ load_dotenv()
 
 import db
 
-DIMENSIONS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition"]
-DIM_LABELS = ["Location", "Commute", "Price value", "Size (m²)", "Outdoor", "Tenure", "Condition"]
-DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5]  # must match config.yaml weights in same order
+DIMENSIONS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition", "epc"]
+DIM_LABELS = ["Location", "Commute", "Price value", "Size (m²)", "Outdoor", "Tenure", "Condition", "EPC"]
+DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 3, 2]  # must match config.yaml weights in same order
 
 
 def build_html(output_path: str = "index.html") -> None:
@@ -77,6 +77,9 @@ def build_html(output_path: str = "index.html") -> None:
             "lease_years": l.get("lease_years"),
             "dist_km": l.get("dist_km"),
             "condition": l.get("condition"),
+            "epc_rating": l.get("epc_rating"),
+            "nearest_station": l.get("nearest_station"),
+            "walk_to_station_m": l.get("walk_to_station_m"),
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
 
@@ -196,6 +199,26 @@ def build_html(output_path: str = "index.html") -> None:
     <div id="spider-wrap"><div id="spider"></div></div>
   </div>
 
+  <div style="margin-top:14px;background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">
+    <table id="data-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead style="background:#f8f9fa">
+        <tr>
+          <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">Address</th>
+          <th data-col="price" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Price ▼</th>
+          <th data-col="score" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Score ▼</th>
+          <th data-col="bedrooms" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Beds</th>
+          <th data-col="sq_m" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Size</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">Tenure</th>
+          <th style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">Garden</th>
+          <th data-col="epc_rating" style="padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6">EPC</th>
+          <th data-col="commute_m" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Commute</th>
+          <th data-col="days_listed" style="padding:10px 12px;text-align:right;border-bottom:2px solid #dee2e6">Days</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
 <script>
 const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
@@ -229,13 +252,18 @@ function sqmSz(s){
 }
 
 function dimActual(dim, l){
-  if(dim==='commute')     return l.commute_m != null ? `${l.commute_m}min` : '—';
+  if(dim==='commute'){
+    if(l.walk_to_station_m != null)
+      return l.nearest_station ? `${l.walk_to_station_m}min to ${l.nearest_station}` : `${l.walk_to_station_m}min walk`;
+    return l.commute_m != null ? `${l.commute_m}min (TfL)` : '—';
+  }
+  if(dim==='location')    return l.dist_km != null ? `${l.dist_km.toFixed(1)}km to ${HOME_POSTCODE}` : '—';
   if(dim==='sq_m')        return l.sq_m ? `${l.sq_m}m²` : '—';
   if(dim==='price_value') return `£${(l.price/1000|0)}k`;
   if(dim==='outdoor')     return l.has_garden ? 'garden ✓' : 'no garden';
   if(dim==='tenure')      return tenureStr(l).split(' ')[0];
-  if(dim==='location')    return l.dist_km != null ? `${l.dist_km.toFixed(1)}km` : '—';
   if(dim==='condition')   return l.condition || '—';
+  if(dim==='epc')         return l.epc_rating || '—';
   return '—';
 }
 
@@ -246,8 +274,13 @@ function tenureStr(l){
   return l.tenure||'Unknown tenure';
 }
 function commuteStr(l){
-  if(l.commute_m == null) return '—';
-  return HOME_POSTCODE ? `${l.commute_m} min → ${HOME_POSTCODE}` : `${l.commute_m} min`;
+  if(l.walk_to_station_m != null)
+    return l.nearest_station
+      ? `${l.walk_to_station_m} min walk to ${l.nearest_station}`
+      : `${l.walk_to_station_m} min walk to station`;
+  if(l.commute_m != null)
+    return HOME_POSTCODE ? `${l.commute_m} min → ${HOME_POSTCODE}` : `${l.commute_m} min`;
+  return '—';
 }
 function hover(l){
   const beds = l.bedrooms ? `${l.bedrooms}BD` : '?BD';
@@ -437,6 +470,59 @@ document.getElementById('scatter').on('plotly_click', evt=>{
   });
   document.getElementById('spider-section').scrollIntoView({behavior:'smooth',block:'nearest'});
 });
+
+// ---- Data table ----
+(function(){
+  const tbl = document.getElementById('data-table');
+  let sortCol = 'score', sortDir = -1;
+
+  function fmt(l){
+    const sq = l.sq_m ? l.sq_m+'m²' : '—';
+    const beds = l.bedrooms || '—';
+    const tenure = tenureStr(l);
+    const garden = l.has_garden ? 'Yes' : 'No';
+    const days = l.days_listed || 0;
+    const epc = l.epc_rating || '—';
+    return [l, sq, beds, tenure, garden, days, epc];
+  }
+
+  function render(){
+    const sorted = [...ALL].sort((a,b)=>{
+      const av = a[sortCol] ?? -Infinity, bv = b[sortCol] ?? -Infinity;
+      return sortDir * (av < bv ? -1 : av > bv ? 1 : 0);
+    });
+    const tbody = tbl.querySelector('tbody');
+    tbody.innerHTML = sorted.map(l => {
+      const sq = l.sq_m ? l.sq_m+'m²' : '—';
+      const epc = l.epc_rating || '—';
+      return `<tr>
+        <td><a href="${l.url}" target="_blank">${l.address}</a></td>
+        <td>£${l.price.toLocaleString('en-GB')}</td>
+        <td>${l.score}</td>
+        <td>${l.bedrooms||'—'}</td>
+        <td>${sq}</td>
+        <td>${tenureStr(l)}</td>
+        <td>${l.has_garden?'Yes':'No'}</td>
+        <td>${epc}</td>
+        <td>${l.commute_m != null ? l.commute_m+'min' : '—'}</td>
+        <td>${l.days_listed||0}d</td>
+      </tr>`;
+    }).join('');
+  }
+
+  tbl.querySelectorAll('thead th[data-col]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      if(sortCol === th.dataset.col) sortDir *= -1;
+      else { sortCol = th.dataset.col; sortDir = -1; }
+      tbl.querySelectorAll('thead th').forEach(t => t.textContent = t.textContent.replace(/ [▲▼]$/,''));
+      th.textContent += sortDir === -1 ? ' ▼' : ' ▲';
+      render();
+    });
+  });
+
+  render();
+})();
 </script>
 </body>
 </html>"""
