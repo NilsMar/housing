@@ -9,6 +9,7 @@ All interactivity is client-side JS — no server required.
 """
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -74,6 +75,8 @@ def build_html(output_path: str = "index.html") -> None:
             "price_changed_at": l.get("price_changed_at"),
             "commute_m": l.get("commute_m"),
             "lease_years": l.get("lease_years"),
+            "dist_km": l.get("dist_km"),
+            "condition": l.get("condition"),
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
 
@@ -82,8 +85,13 @@ def build_html(output_path: str = "index.html") -> None:
     # Two listings are the same property if their coords are within ~30m,
     # or (fallback) if their normalised address strings match exactly.
     def _same_property(a, b) -> bool:
-        if a.get("lat") and b.get("lat"):
-            return abs(a["lat"] - b["lat"]) < 0.0003 and abs(a["lng"] - b["lng"]) < 0.0004
+        # Proximity match only trusted across different platforms — same-platform listings
+        # at the same outcode centroid are different properties, not duplicates
+        lat_close = (a.get("lat") and b.get("lat") and
+                     abs(a["lat"] - b["lat"]) < 0.0003 and
+                     abs(a["lng"] - b["lng"]) < 0.0004)
+        if lat_close and a.get("platform") != b.get("platform"):
+            return True
         addr_a = (a.get("address") or "").lower().strip().rstrip(",")
         addr_b = (b.get("address") or "").lower().strip().rstrip(",")
         return bool(addr_a) and addr_a == addr_b
@@ -100,6 +108,8 @@ def build_html(output_path: str = "index.html") -> None:
 
     max_price = max((r["price"] for r in rows), default=2000000)
     price_slider_max = ((max_price + 24999) // 25000) * 25000
+
+    home_postcode = os.environ.get("HOME_POSTCODE", "")
 
     listings_json = json.dumps(rows)
     dim_keys_json = json.dumps(DIMENSIONS)
@@ -191,6 +201,7 @@ const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
 const DIM_WEIGHTS = __DIM_WEIGHTS__;
+const HOME_POSTCODE = __HOME_POSTCODE__;
 // Sq_m sizing: linear scale over actual data range; 12px default for unknown
 const _sqmVals = ALL.map(l=>l.sq_m).filter(s=>s&&s>=20);
 const SQM_DATA_MIN = _sqmVals.length ? Math.min(..._sqmVals) : 0;
@@ -235,7 +246,8 @@ function tenureStr(l){
   return l.tenure||'Unknown tenure';
 }
 function commuteStr(l){
-  return l.commute_m != null ? `${l.commute_m} min` : '—';
+  if(l.commute_m == null) return '—';
+  return HOME_POSTCODE ? `${l.commute_m} min → ${HOME_POSTCODE}` : `${l.commute_m} min`;
 }
 function hover(l){
   const beds = l.bedrooms ? `${l.bedrooms}BD` : '?BD';
@@ -435,6 +447,7 @@ document.getElementById('scatter').on('plotly_click', evt=>{
         .replace("__DIM_LABELS__", dim_labels_json)
         .replace("__DIM_WEIGHTS__", dim_weights_json)
         .replace("__PRICE_SLIDER_MAX__", str(price_slider_max))
+        .replace("__HOME_POSTCODE__", json.dumps(home_postcode))
     )
     Path(output_path).write_text(html, encoding="utf-8")
     print(f"[report] Written {output_path} ({len(rows)} scored listings)")
