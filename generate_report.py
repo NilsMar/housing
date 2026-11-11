@@ -10,6 +10,7 @@ All interactivity is client-side JS — no server required.
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,6 +26,22 @@ DIM_WEIGHTS = [15, 10, 25, 20, 15, 10, 5]  # must match config.yaml weights in s
 def build_html(output_path: str = "index.html") -> None:
     db.init_db()
     listings = db.get_all_listings()
+
+    def _days_listed(l) -> int:
+        v = l.get("days_listed") or 0
+        if v:
+            return v
+        fs = l.get("first_seen")
+        if not fs:
+            return 0
+        try:
+            if isinstance(fs, datetime):
+                dt = fs if fs.tzinfo else fs.replace(tzinfo=timezone.utc)
+            else:
+                dt = datetime.fromisoformat(str(fs).replace("Z", "+00:00"))
+            return max(0, (datetime.now(timezone.utc) - dt).days)
+        except Exception:
+            return 0
 
     rows = []
     for l in listings:
@@ -47,7 +64,7 @@ def build_html(output_path: str = "index.html") -> None:
             "sq_m": sq_m,
             "lat": l.get("lat"),
             "lng": l.get("lng"),
-            "days_listed": l.get("days_listed") or 0,
+            "days_listed": _days_listed(l),
             "address": address,
             "url": l.get("url", "#"),
             "tenure": l.get("tenure", "unknown"),
@@ -83,6 +100,14 @@ def build_html(output_path: str = "index.html") -> None:
 
     max_price = max((r["price"] for r in rows), default=2000000)
     price_slider_max = ((max_price + 24999) // 25000) * 25000
+
+    valid_sqm = sorted(r["sq_m"] for r in rows if r.get("sq_m") and r["sq_m"] >= 20)
+    if len(valid_sqm) >= 2:
+        sqm_lo, sqm_hi = int(valid_sqm[0]), int(valid_sqm[-1])
+        span = sqm_hi - sqm_lo
+        sqm_breaks = [round(sqm_lo + span * i / 5) for i in range(1, 5)] if span > 0 else [sqm_lo + 10, sqm_lo + 20, sqm_lo + 30, sqm_lo + 40]
+    else:
+        sqm_lo, sqm_hi, sqm_breaks = 50, 110, [62, 74, 86, 98]
 
     listings_json = json.dumps(rows)
     dim_keys_json = json.dumps(DIMENSIONS)
