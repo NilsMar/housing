@@ -12,6 +12,9 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import db
 
 DIMENSIONS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition"]

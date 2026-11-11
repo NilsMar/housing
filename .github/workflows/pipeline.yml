@@ -21,31 +21,20 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Restore database
-        uses: actions/cache/restore@v4
-        with:
-          path: housing.db
-          key: housing-db-${{ github.run_id }}
-          restore-keys: housing-db-
-
       - name: Run pipeline
         env:
           GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           HOME_POSTCODE: ${{ secrets.HOME_POSTCODE }}
-          DATA_DIR: .
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python main.py
 
       - name: Generate report
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           python generate_report.py index.html
           mkdir -p _site && cp index.html _site/index.html
-
-      - name: Save database
-        uses: actions/cache/save@v4
-        with:
-          path: housing.db
-          key: housing-db-${{ github.run_id }}
 
       - name: Deploy report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
