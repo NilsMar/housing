@@ -54,6 +54,8 @@ def build_html(output_path: str = "index.html") -> None:
             "price_changed_at": l.get("price_changed_at"),
             "commute_m": l.get("commute_m"),
             "lease_years": l.get("lease_years"),
+            "dist_km": l.get("dist_km"),
+            "condition": l.get("condition"),
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
 
@@ -165,7 +167,18 @@ const TENURE_NAME = {
 
 let maxDays = Infinity, minScore = 0, priceMin = 0, priceMax = Infinity;
 
-function bedSz(b){ return({1:9,2:13,3:17,4:21}[b]||13); }
+function sqmSz(s){ if(!s)return 11; if(s<50)return 8; if(s<70)return 11; if(s<90)return 14; if(s<110)return 17; return 21; }
+
+function dimActual(dim, l){
+  if(dim==='commute')     return l.commute_m != null ? `${l.commute_m}min` : '—';
+  if(dim==='sq_m')        return l.sq_m ? `${l.sq_m}m²` : '—';
+  if(dim==='price_value') return `£${(l.price/1000|0)}k`;
+  if(dim==='outdoor')     return l.has_garden ? 'garden ✓' : 'no garden';
+  if(dim==='tenure')      return tenureStr(l).split(' ')[0];
+  if(dim==='location')    return l.dist_km != null ? `${l.dist_km.toFixed(1)}km` : '—';
+  if(dim==='condition')   return l.condition || '—';
+  return '—';
+}
 
 function tenureStr(l){
   if(l.tenure==='leasehold') return l.lease_years ? `Leasehold (${l.lease_years}yr)` : 'Leasehold';
@@ -211,7 +224,7 @@ function buildTraces(ls){
   const traces = Object.entries(groups).map(([t, items]) => ({
     type:'scatter', x:items.map(l=>l.price), y:items.map(l=>l.score), mode:'markers',
     marker:{
-      size:items.map(l=>bedSz(l.bedrooms)),
+      size:items.map(l=>sqmSz(l.sq_m)),
       color:TENURE_COLOR[t],
       line:{width:1,color:'white'}, opacity:0.85,
     },
@@ -233,14 +246,14 @@ function buildTraces(ls){
   const vl = valueLine(ls);
   if(vl) traces.push(vl);
 
-  // Bedroom size legend (dummy traces — null data, appear only in legend)
-  [[1,9],[2,13],[3,17],[4,21]].forEach(([beds,sz],i) => {
+  // Size legend (dummy traces — null data, appear only in legend)
+  [['<50m²',8],['50–70m²',11],['70–90m²',14],['90–110m²',17],['>110m²',21]].forEach(([lbl,sz],i) => {
     traces.push({
       type:'scatter', x:[null], y:[null], mode:'markers',
       marker:{size:sz, color:'#7f8c8d', line:{width:1,color:'white'}},
-      name:`${beds}BD`,
-      legendgroup:'bedrooms',
-      legendgrouptitle: i===0 ? {text:'Bedrooms'} : {},
+      name:lbl,
+      legendgroup:'sqm',
+      legendgrouptitle: i===0 ? {text:'Size (m²)'} : {},
       showlegend:true, hoverinfo:'skip',
     });
   });
@@ -338,13 +351,13 @@ document.getElementById('scatter').on('plotly_click', evt=>{
 
   const vals = DIM_KEYS.map(k => l.breakdown[k] || 0);
   const closed = [...vals, vals[0]];
-  // Axis labels show dimension name + actual raw score
-  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (${vals[i]}/10)`);
+  // Axis labels show dimension name + real-world value
+  const axisLabels = DIM_LABELS.map((lbl,i) => `${lbl} (${dimActual(DIM_KEYS[i], l)})`);
   const theta = [...axisLabels, axisLabels[0]];
-  // Hover shows: raw score, weight, and resulting % contribution to total
+  // Hover shows: real-world value, raw score, weight, % contribution
   const hoverText = DIM_LABELS.map((lbl,i) => {
     const contrib = (vals[i] * DIM_WEIGHTS[i] / 10).toFixed(1);
-    return `<b>${lbl}</b><br>${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib}%</b>`;
+    return `<b>${lbl}</b><br>${dimActual(DIM_KEYS[i], l)} · ${vals[i]}/10 × ${DIM_WEIGHTS[i]}% = <b>${contrib}%</b>`;
   });
 
   Plotly.react('spider',[{
