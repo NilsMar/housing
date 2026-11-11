@@ -38,12 +38,27 @@
     #spider-header h2{font-size:1rem}
     #spider-header .meta{color:#7f8c8d;font-size:.82rem;margin-top:3px}
     #spider-wrap{background:white;border-radius:0 0 8px 8px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px}
+    .tabs{display:flex;gap:4px;margin-bottom:14px}
+    .tab-btn{padding:7px 18px;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;
+             font-weight:600;background:white;color:#7f8c8d;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    .tab-btn.active{background:#2980b9;color:white}
+    #tab-charts{} #tab-table{display:none}
+    #data-table tr:nth-child(even) td{background:#fafafa}
+    #data-table td,#data-table th{padding:9px 12px;border-bottom:1px solid #f0f0f0}
+    #data-table a{color:#2980b9;text-decoration:none}
+    #data-table a:hover{text-decoration:underline}
   </style>
 </head>
 <body>
   <h1>London Property Tracker</h1>
   <p class="sub">Click any dot to drill into its scoring breakdown. &nbsp;▼ purple triangle = price reduced.</p>
 
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('charts')">Charts</button>
+    <button class="tab-btn" onclick="switchTab('table')">Table</button>
+  </div>
+
+  <div id="tab-charts">
   <div id="filters">
     <div class="fg">
       <label>Price &nbsp;<span id="price-label" style="color:#27ae60;font-weight:700">any</span></label>
@@ -78,7 +93,10 @@
     <div id="spider-wrap"><div id="spider"></div></div>
   </div>
 
-  <div style="margin-top:14px;background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">
+  </div><!-- /tab-charts -->
+
+  <div id="tab-table">
+  <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto">
     <table id="data-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
       <thead style="background:#f8f9fa">
         <tr>
@@ -97,8 +115,15 @@
       <tbody></tbody>
     </table>
   </div>
+  </div><!-- /tab-table -->
 
 <script>
+function switchTab(name){
+  document.getElementById('tab-charts').style.display = name==='charts' ? '' : 'none';
+  document.getElementById('tab-table').style.display  = name==='table'  ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>
+    b.classList.toggle('active', (i===0&&name==='charts')||(i===1&&name==='table')));
+}
 const ALL = [{"id": "rightmove:93634452", "platform": "rightmove", "price": 800000, "score": 71.8, "bedrooms": 2, "sq_m": 57, "lat": 51.5432, "lng": -0.085961, "days_listed": 0, "address": "Englefield Road, De Beauvoir, London, N1", "url": "https://www.rightmove.co.uk/properties/93634452", "tenure": "leasehold", "has_garden": 1, "image_url": "https://media.rightmove.co.uk/property-photo/bdca68a70/93634452/bdca68a70a825a769fbec29729df1a96.jpeg", "previous_price": null, "price_changed_at": null, "commute_m": 7, "lease_years": 123, "dist_km": 0.319, "condition": "modern", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 8.41, "commute": 7.67, "price_value": 7.69, "sq_m": 5.67, "outdoor": 10.0, "tenure": 2.0, "condition": 8.0, "epc": 0}, "also_on": [{"platform": "onthemarket", "url": "https://www.onthemarket.com/details/20423041"}, {"platform": "zoopla", "url": "https://www.zoopla.co.uk/for-sale/details/74350877"}]}, {"id": "onthemarket:20585027", "platform": "onthemarket", "price": 795000, "score": 66.3, "bedrooms": 2, "sq_m": null, "lat": 51.5414, "lng": -0.086242, "days_listed": 0, "address": "Cleveland Road, London, N1", "url": "https://www.onthemarket.com/details/20585027", "tenure": "leasehold", "has_garden": 1, "image_url": "https://media.onthemarket.com/properties/20585027/1653271821/image-0-81x55.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 10, "lease_years": 88, "dist_km": 0.511, "condition": "modern", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 7.45, "commute": 6.67, "price_value": 7.77, "sq_m": 5.0, "outdoor": 10.0, "tenure": 0.0, "condition": 8.0, "epc": 0}}, {"id": "zoopla:73561971", "platform": "zoopla", "price": 1000000, "score": 65.2, "bedrooms": 3, "sq_m": 139, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Enfield Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/73561971", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/fc9fafe71fc0ea04ad99dd987a7e3fe32dba72cf.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 104, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 8.89, "sq_m": 10.0, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:74364986", "platform": "zoopla", "price": 725000, "score": 64.0, "bedrooms": 3, "sq_m": 80, "lat": 51.5438, "lng": -0.0661106, "days_listed": 0, "address": "Forest Road, London E8", "url": "https://www.zoopla.co.uk/for-sale/details/74364986", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/e27ff9d58e2fa7c7e39f114d69f35ba15907994b.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 16, "lease_years": 996, "dist_km": 1.48, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 2.6, "commute": 4.67, "price_value": 10.0, "sq_m": 7.99, "outdoor": 4.0, "tenure": 6.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:71165179", "platform": "zoopla", "price": 800000, "score": 64.0, "bedrooms": 3, "sq_m": 80, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Hertford Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/71165179", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/677f65acea360acf3f208cd85e84e84ed2472bfe.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 111, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 10.0, "sq_m": 7.98, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:74727621", "platform": "zoopla", "price": 775000, "score": 63.7, "bedrooms": 3, "sq_m": 89, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "De Beauvoir Square, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74727621", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/645/430/f4359ad72b4147141b1d84b5b06f1b3d36013d07.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 83, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 10.0, "sq_m": 8.87, "outdoor": 4.0, "tenure": 0.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:74425126", "platform": "zoopla", "price": 825000, "score": 57.7, "bedrooms": 2, "sq_m": 82, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Mitchison Road, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74425126", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/f22b948f8d38a4e770ebe05e0634832b9cf407bd.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 113, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 7.31, "sq_m": 8.23, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:74096064", "platform": "zoopla", "price": 900000, "score": 55.9, "bedrooms": 2, "sq_m": 87, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Southgate Road, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74096064", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/44247f1d02646fcfb57c3cabc92b0f10da6ef3bb.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 118, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 6.15, "sq_m": 8.74, "outdoor": 4.0, "tenure": 2.0, "condition": 5.0, "epc": 0}}, {"id": "zoopla:74676722", "platform": "zoopla", "price": 900000, "score": 52.7, "bedrooms": 2, "sq_m": 82, "lat": 51.5378, "lng": -0.0969696, "days_listed": 0, "address": "Southgate Road, De Beauvoir, London N1", "url": "https://www.zoopla.co.uk/for-sale/details/74676722", "tenure": "leasehold", "has_garden": 0, "image_url": "https://lid.zoocdn.com/354/255/2190720dd42aee62b26b7c3d7a6ce063a35331ca.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 12, "lease_years": 88, "dist_km": 1.139, "condition": "unknown", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 4.33, "commute": 6.0, "price_value": 6.15, "sq_m": 8.18, "outdoor": 4.0, "tenure": 0.0, "condition": 5.0, "epc": 0}}, {"id": "onthemarket:20685702", "platform": "onthemarket", "price": 750000, "score": 51.7, "bedrooms": 3, "sq_m": null, "lat": 51.5412, "lng": -0.116821, "days_listed": 0, "address": "348 Caledonian Road, London N1 1DU", "url": "https://www.onthemarket.com/details/20685702", "tenure": "unknown", "has_garden": 0, "image_url": "https://media.onthemarket.com/properties/20685702/1656460164/image-0-81x55.jpg", "previous_price": null, "price_changed_at": null, "commute_m": 25, "lease_years": null, "dist_km": 2.124, "condition": "modern", "epc_rating": null, "nearest_station": null, "walk_to_station_m": null, "breakdown": {"location": 0.0, "commute": 1.67, "price_value": 10.0, "sq_m": 5.0, "outdoor": 4.0, "tenure": 5.0, "condition": 8.0, "epc": 0}}];
 const DIM_KEYS = ["location", "commute", "price_value", "sq_m", "outdoor", "tenure", "condition", "epc"];
 const DIM_LABELS = ["Location", "Commute", "Price value", "Size (m\u00b2)", "Outdoor", "Tenure", "Condition", "EPC"];
