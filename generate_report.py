@@ -245,7 +245,6 @@ function switchTab(name){
   document.querySelectorAll('.tab-btn').forEach((b,i)=>
     b.classList.toggle('active', (i===0&&name==='charts')||(i===1&&name==='table')));
 }
-</script>
 const ALL = __LISTINGS_DATA__;
 const DIM_KEYS = __DIM_KEYS__;
 const DIM_LABELS = __DIM_LABELS__;
