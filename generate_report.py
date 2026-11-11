@@ -40,10 +40,13 @@ def build_html(output_path: str = "index.html") -> None:
         sq_m = round(sq_ft * 0.0929) if sq_ft else None
         rows.append({
             "id": l["id"],
+            "platform": l.get("platform", ""),
             "price": l["price"],
             "score": round(l["score"], 1),
             "bedrooms": l.get("bedrooms"),
             "sq_m": sq_m,
+            "lat": l.get("lat"),
+            "lng": l.get("lng"),
             "days_listed": l.get("days_listed") or 0,
             "address": address,
             "url": l.get("url", "#"),
@@ -54,10 +57,29 @@ def build_html(output_path: str = "index.html") -> None:
             "price_changed_at": l.get("price_changed_at"),
             "commute_m": l.get("commute_m"),
             "lease_years": l.get("lease_years"),
-            "dist_km": l.get("dist_km"),
-            "condition": l.get("condition"),
             "breakdown": {d: breakdown.get(d, 0) for d in DIMENSIONS},
         })
+
+    # Deduplicate: same physical property listed on multiple platforms.
+    # Listings are already sorted by score DESC so we keep the best-scored version.
+    # Two listings are the same property if their coords are within ~30m,
+    # or (fallback) if their normalised address strings match exactly.
+    def _same_property(a, b) -> bool:
+        if a.get("lat") and b.get("lat"):
+            return abs(a["lat"] - b["lat"]) < 0.0003 and abs(a["lng"] - b["lng"]) < 0.0004
+        addr_a = (a.get("address") or "").lower().strip().rstrip(",")
+        addr_b = (b.get("address") or "").lower().strip().rstrip(",")
+        return bool(addr_a) and addr_a == addr_b
+
+    deduped: list[dict] = []
+    for row in rows:
+        match = next((r for r in deduped if _same_property(row, r)), None)
+        if match:
+            # Annotate the kept listing with the duplicate's platform link
+            match.setdefault("also_on", []).append({"platform": row["platform"], "url": row["url"]})
+        else:
+            deduped.append(row)
+    rows = deduped
 
     max_price = max((r["price"] for r in rows), default=2000000)
     price_slider_max = ((max_price + 24999) // 25000) * 25000
@@ -194,9 +216,11 @@ function hover(l){
   const pr = l.previous_price ? ` &nbsp;<b style="color:#8e44ad">↓ from £${l.previous_price.toLocaleString('en-GB')}</b>` : '';
   const gd = l.has_garden ? 'Garden ✓' : 'No garden';
   const sz = l.sq_m ? `${l.sq_m}m² · ` : '';
+  const also = (l.also_on||[]).map(x=>`Also on <a href="${x.url}" target="_blank">${x.platform}</a>`).join(' · ');
   return `<b>${l.address} · ${beds}</b><br>£${l.price.toLocaleString('en-GB')}${pr}<br>`+
          `Score: ${l.score} · ${sz}${tenureStr(l)}<br>`+
-         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`;
+         `🚇 ${commuteStr(l)} commute · ${gd} · Listed ${l.days_listed}d ago`+
+         (also ? `<br><span style="color:#7f8c8d;font-size:.85em">${also}</span>` : '');
 }
 
 function valueLine(ls){
