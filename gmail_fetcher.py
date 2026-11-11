@@ -22,9 +22,9 @@ SCOPES = [
 ]
 
 ALERT_SENDERS = {
-    "rightmove": "rightmove@rightmove.co.uk",
-    "zoopla": "alerts@zoopla.co.uk",
-    "onthemarket": "noreply@onthemarket.com",
+    "rightmove": "property@alert.rightmove.co.uk",
+    "zoopla": "propertyalerts@comms-2.zoopla.co.uk",
+    "onthemarket": "property-alerts@mail.onthemarket.com",
 }
 
 URL_PATTERNS = {
